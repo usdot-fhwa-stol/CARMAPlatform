@@ -1,0 +1,4 @@
+DEVELOPERS="qswawrq@gmail.com, 32398753+aswath1@users.noreply.github.com, misheel.bayart@gmail.com, msmcconnell134@gmail.com, 55258852+saina-ramyar@users.noreply.github.com, 52839028+jsun6065@users.noreply.github.com, msmcconnell@wpi.edu"
+KNOWN_NOT_DEVELOPERS="sparus@sparusII, wbaker@houstonmechatronics.com, miquel.massot@uib.cat, watters@torcrobotics.com, taylor@torc.ai, preed@swri.org, 39536461+zoakesAStuff@users.noreply.github.com, marcel.zeilinger@live.at, benjamin.orthen@tum.de, "
+export DEVELOPERS
+export KNOWN_NOT_DEVELOPERS
