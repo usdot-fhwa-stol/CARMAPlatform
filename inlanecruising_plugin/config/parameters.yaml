@@ -7,4 +7,4 @@ moving_average_window_size: 5 # Size of the window used in the moving average fi
 back_distance: 15.0 # Number of meters behind the first maneuver that need to be included in points for curvature calculation
 max_accel_multiplier: 0.85 # Multiplier of max_accel to bring the value under max_accel
 lat_accel_multiplier: 0.50 # Multiplier of lat_accel to bring the value under lat_accel TODO needs to be optimized
-enable_object_avoidance: false # Activates object avoidance logic 
+enable_object_avoidance: true # Activates object avoidance logic 

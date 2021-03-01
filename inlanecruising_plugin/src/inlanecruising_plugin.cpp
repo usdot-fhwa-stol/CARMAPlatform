@@ -60,10 +60,53 @@ bool InLaneCruisingPlugin::onSpin()
   return true;
 }
 
+void InLaneCruisingPlugin::set_yield_client(ros::ServiceClient& client)
+{
+  yield_client_ = client;
+}
+
+bool InLaneCruisingPlugin::plan_trajectory_cb2(cav_srvs::PlanTrajectoryRequest& req,
+                                              cav_srvs::PlanTrajectoryResponse& resp)
+{
+
+  ROS_ERROR("in cb2");
+  if (yield_client_ && yield_client_.exists() && yield_client_.isValid()){
+    ROS_ERROR("Good Client");
+  }
+  cav_srvs::PlanTrajectory yield_srv;
+  if (req.initial_trajectory_plan.trajectory_id == "ILCReq"){
+    yield_srv.request.initial_trajectory_plan.trajectory_id = "YieldReq";
+  }
+
+  if(ros::service::exists("plugins/YieldPlugin/plan_trajectory", true))
+  {
+    ROS_ERROR("SERVICE EXISTS");
+
+    if(yield_client_.waitForExistence(ros::Duration(5.0))){
+      ROS_ERROR("SERVICE still EXISTS");
+    }
+    if (yield_client_.call(yield_srv))
+    {
+        ROS_ERROR("Yield SERVICE CALLED");
+        if (yield_srv.response.trajectory_plan.trajectory_id == "YieldResp")
+        {
+          resp.trajectory_plan.trajectory_id = "ILC2Yield";
+        } 
+    }
+    else
+      {
+        ROS_ERROR("Failed to call service ");
+      } 
+  }
+    else ROS_ERROR("Service Unavailable");
+  
+  return true;
+}
+
 bool InLaneCruisingPlugin::plan_trajectory_cb(cav_srvs::PlanTrajectoryRequest& req,
                                               cav_srvs::PlanTrajectoryResponse& resp)
 {
-   ros::WallTime start_time = ros::WallTime::now();  // Start timeing the execution time for planning so it can be logged
+  ros::WallTime start_time = ros::WallTime::now();  // Start timeing the execution time for planning so it can be logged
 
   lanelet::BasicPoint2d veh_pos(req.vehicle_state.X_pos_global, req.vehicle_state.Y_pos_global);
   double current_downtrack = wm_->routeTrackPos(veh_pos).downtrack;
@@ -87,22 +130,15 @@ bool InLaneCruisingPlugin::plan_trajectory_cb(cav_srvs::PlanTrajectoryRequest& r
 
   ROS_DEBUG_STREAM("PlanTrajectory");
 
-  cav_msgs::TrajectoryPlan trajectory;
-  trajectory.header.frame_id = "map";
-  trajectory.header.stamp = ros::Time::now();
-  trajectory.trajectory_id = boost::uuids::to_string(boost::uuids::random_generator()());
+  cav_msgs::TrajectoryPlan initial_trajectory;
+  initial_trajectory.header.frame_id = "map";
+  initial_trajectory.header.stamp = ros::Time::now();
+  initial_trajectory.trajectory_id = boost::uuids::to_string(boost::uuids::random_generator()());
 
-  trajectory.trajectory_points = compose_trajectory_from_centerline(downsampled_points, req.vehicle_state); // Compute the trajectory
-  trajectory.initial_longitudinal_velocity = std::max(req.vehicle_state.longitudinal_vel, config_.minimum_speed);
+  initial_trajectory.trajectory_points = compose_trajectory_from_centerline(downsampled_points, req.vehicle_state); // Compute the trajectory
+  initial_trajectory.initial_longitudinal_velocity = std::max(req.vehicle_state.longitudinal_vel, config_.minimum_speed);
 
-  if (config_.enable_object_avoidance)
-  {
-    resp.trajectory_plan = obj_.update_traj_for_object(trajectory, wm_, req.vehicle_state.longitudinal_vel);
-  }
-  else
-  {
-    resp.trajectory_plan = trajectory;
-  }
+    resp.trajectory_plan = initial_trajectory;
   
   resp.related_maneuvers.push_back(cav_msgs::Maneuver::LANE_FOLLOWING);
   resp.maneuver_status.push_back(cav_srvs::PlanTrajectory::Response::MANEUVER_IN_PROGRESS);
@@ -113,6 +149,12 @@ bool InLaneCruisingPlugin::plan_trajectory_cb(cav_srvs::PlanTrajectoryRequest& r
   ROS_DEBUG_STREAM("ExecutionTime: " << duration.toSec());
 
   return true;
+}
+
+cav_srvs::PlanTrajectory InLaneCruisingPlugin::compose_yield_request(cav_msgs::TrajectoryPlan initial_plan){
+  cav_srvs::PlanTrajectory yield_srv;
+  yield_srv.request.initial_trajectory_plan = initial_plan;
+  return yield_srv;
 }
 
 std::vector<double> InLaneCruisingPlugin::apply_speed_limits(const std::vector<double> speeds,

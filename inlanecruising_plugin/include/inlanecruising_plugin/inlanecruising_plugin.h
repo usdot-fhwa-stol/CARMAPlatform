@@ -72,6 +72,9 @@ public:
    */ 
   bool plan_trajectory_cb(cav_srvs::PlanTrajectoryRequest& req, cav_srvs::PlanTrajectoryResponse& resp);
 
+  bool plan_trajectory_cb2(cav_srvs::PlanTrajectoryRequest& req, cav_srvs::PlanTrajectoryResponse& resp);
+
+  void set_yield_client(ros::ServiceClient& client);
   /**
    * \brief Method to call at fixed rate in execution loop. Will publish plugin discovery updates
    * 
@@ -234,6 +237,8 @@ public:
   std::vector<PointSpeedPair> attach_back_points(const std::vector<PointSpeedPair>& points, const int nearest_pt_index, 
                                std::vector<inlanecruising_plugin::PointSpeedPair> future_points, double back_distance) const;
   
+  cav_srvs::PlanTrajectory compose_yield_request(cav_msgs::TrajectoryPlan initial_plan);
+  
 private:
 
   /**
@@ -253,5 +258,6 @@ private:
   PublishPluginDiscoveryCB plugin_discovery_publisher_;
 
   cav_msgs::Plugin plugin_discovery_msg_;
+  ros::ServiceClient yield_client_;
 };
 };  // namespace inlanecruising_plugin
