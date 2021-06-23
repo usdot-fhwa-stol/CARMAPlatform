@@ -81,7 +81,7 @@ namespace port_drayage_plugin
              * The system initially starts in INACTIVE state.
              */
             PortDrayageStateMachine() :
-                _state(PortDrayageState::INACTIVE) {};
+                _state(PortDrayageState::AWAITING_DIRECTION) {};
         
             /**
              * \Brief Inform the state machine that an event has transpired.

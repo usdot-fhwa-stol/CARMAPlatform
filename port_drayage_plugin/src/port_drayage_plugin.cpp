@@ -37,7 +37,7 @@ namespace port_drayage_plugin
         ros::Publisher outbound_mob_op = _nh->advertise<cav_msgs::MobilityOperation>("outgoing_mobility_operation", 5);
         _outbound_mobility_operations_publisher = std::make_shared<ros::Publisher>(outbound_mob_op);
 
-        ros::ServiceClient _set_active_route_client = _nh->serviceClient<cav_srvs::SetActiveRoute>("guidance/set_active_route");
+        _set_active_route_client = _nh->serviceClient<cav_srvs::SetActiveRoute>("/guidance/set_active_route");
 
         PortDrayageWorker pdw{
             cmv_id,
@@ -90,7 +90,7 @@ namespace port_drayage_plugin
 
     bool PortDrayagePlugin::call_set_active_route_client(cav_srvs::SetActiveRoute req){
         if(_set_active_route_client.call(req)){
-            if(req.response.errorStatus != cav_srvs::SetActiveRouteResponse::NO_ERROR){
+            if(req.response.errorStatus == cav_srvs::SetActiveRouteResponse::NO_ERROR){
                 ROS_DEBUG_STREAM("Set Active Route service call was successful. Route Generation succeeded.");
                 return true;
             }
