@@ -1,6 +1,6 @@
-#include <inlanecruising_plugin/smoothing/BSpline.h>
+#include <basic_autonomy/smoothing/BSpline.h>
 
-namespace inlanecruising_plugin
+namespace basic_autonomy
 {
 namespace smoothing
 {
@@ -34,4 +34,4 @@ lanelet::BasicPoint2d  BSpline::second_deriv(double t) const {
 }
 
 };  // namespace smoothing
-};  // namespace inlanecruising_plugin
+};  // namespace basic_autonomy

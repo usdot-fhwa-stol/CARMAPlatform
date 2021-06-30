@@ -18,29 +18,28 @@
 
 #include <vector>
 #include <carma_wm/Geometry.h>
-#include "smoothing/SplineI.h"
+#include <basic_autonomy/smoothing/SplineI.h>
 #include <unsupported/Eigen/Splines>
 
-namespace cooperative_lanechange
+namespace basic_autonomy
 {
 namespace smoothing
 {
 
-    typedef Eigen::Spline<double, 2> Spline2d;
+  typedef Eigen::Spline<double, 2> Spline2d;
 /**
  * \brief Realization of SplineI that uses the Eigen::Splines library for interpolation 
  */ 
 class BSpline : public SplineI
 {
 public:
- ~BSpline(){};
+  ~BSpline(){};
   void setPoints(std::vector<lanelet::BasicPoint2d> points) override;
   lanelet::BasicPoint2d operator()(double t) const override;
   lanelet::BasicPoint2d first_deriv(double t) const override;
   lanelet::BasicPoint2d second_deriv(double t) const override;
-
 private:
   Spline2d spline_;
 };
 };  // namespace smoothing
-};  // namespace cooperative_lanechange
+};  // namespace basic_autonomy

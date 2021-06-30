@@ -63,6 +63,7 @@ public:
                      config.speed_moving_average_window_size);
     pnh.param<int>("curvature_moving_average_window_size", config.curvature_moving_average_window_size,
                      config.curvature_moving_average_window_size);
+    pnh.param<double>("buffer_ending_downtrack", config.buffer_ending_downtrack, config.buffer_ending_downtrack);
     pnh.param<double>("/vehicle_acceleration_limit", config.max_accel, config.max_accel);
     pnh.param<double>("/vehicle_lateral_accel_limit", config.lateral_accel_limit, config.lateral_accel_limit);
     pnh.param<bool>("enable_object_avoidance", config.enable_object_avoidance, config.enable_object_avoidance);

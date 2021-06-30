@@ -19,7 +19,7 @@
 #include <vector>
 #include <carma_wm/Geometry.h>
 
-namespace inlanecruising_plugin
+namespace basic_autonomy
 {
 namespace smoothing
 {
@@ -70,4 +70,4 @@ public:
   virtual lanelet::BasicPoint2d second_deriv(double x) const = 0;
 };
 };  // namespace smoothing
-};  // namespace inlanecruising_plugin
+};  // namespace basic_autonomy

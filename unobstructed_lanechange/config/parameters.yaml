@@ -66,3 +66,15 @@ enable_object_avoidance_lc : false
 # Double: The minimum timestep used for planning trajectory
 #Units: seconds
 min_timestep : 0.1
+
+#Int: Amount to downsample input lanelet centerline data on turns. Value corresponds to saving each nth point.
+turn_downsample_ratio: 0
+
+#Double: Curve re-sampling step size in m
+curve_resample_step_size: 1.0
+
+#Double: Number of meters behind the first maneuver that need to be included in points for curvature calculation
+back_distance: 0.0
+
+#Double: 
+buffer_ending_downtrack: 0.0

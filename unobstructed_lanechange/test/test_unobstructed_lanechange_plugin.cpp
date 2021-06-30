@@ -46,9 +46,9 @@ namespace unobstructed_lanechange
     TEST(UnobstructedLaneChangePlugin,Testusingosm){
         // File to process. 
         std::string file = "../resource/map/town01_vector_map_lane_change.osm";
-        lanelet::Id start_id = 111;
-        lanelet::Id lane_change_start_id = 111;
-        lanelet::Id end_id = 106;
+        lanelet::Id start_id = 101;
+        lanelet::Id lane_change_start_id = 101;
+        lanelet::Id end_id = 107;
         int projector_type = 0;
         std::string target_frame;
         lanelet::ErrorMessages load_errors;
@@ -65,7 +65,6 @@ namespace unobstructed_lanechange
         //Set Route
         carma_wm::test::setRouteByIds({start_id,end_id},cmw);
         cmw->carma_wm::CARMAWorldModel::setMap(map);
-
         //get starting position
         auto llt=map.get()->laneletLayer.get(start_id);
         lanelet::LineString3d left_bound=llt.leftBound();
@@ -130,7 +129,6 @@ namespace unobstructed_lanechange
         cav_msgs::VehicleState vehicle_state;
         vehicle_state.X_pos_global = veh_pos.x();
         vehicle_state.Y_pos_global = veh_pos.y();
-        auto points_and_target_speeds = worker.maneuvers_to_points(maneuvers, starting_downtrack, cmw, vehicle_state);  
         
 
         /* Test PlanTrajectory cb */
@@ -153,54 +151,12 @@ namespace unobstructed_lanechange
         maneuvers_msg.push_back(maneuver);
         maneuvers_msg.push_back(maneuver2);
         req.maneuver_plan.maneuvers = maneuvers_msg;
+        req.maneuver_index_to_plan = 0;
         bool isTrajectory = worker.plan_trajectory_cb(req,resp);
         
         EXPECT_TRUE(isTrajectory);
         EXPECT_TRUE(resp.trajectory_plan.trajectory_points.size() > 2);
         EXPECT_EQ(0, resp.related_maneuvers.back());
-
-        /*Test compose trajectort and helper function*/
-        std::vector<cav_msgs::TrajectoryPlanPoint> trajectory;
-
-        int nearest_pt = worker.getNearestPointIndex(points_and_target_speeds,vehicle_state);
-
-        std::vector<lanelet::BasicPoint2d> points_split;
-        std::vector<double> speeds_split;
-        worker.splitPointSpeedPairs(points_and_target_speeds, &points_split, &speeds_split);
-        EXPECT_TRUE(points_split.size() == speeds_split.size());
-
-        //Test trajectory from points
-        std::vector<double> yaw_values ={};
-        yaw_values.resize(points_and_target_speeds.size(),0);
-        std::vector<double> times={};
-        times.resize(points_and_target_speeds.size(),0.1); // Sample time vector with all 0.1 speeds
-        std::vector<cav_msgs::TrajectoryPlanPoint> traj_points = worker.trajectory_from_points_times_orientations(points_split,times,yaw_values, ros::Time::now());
-
-        //Test apply speed limits
-        std::vector<double> speed_limits={};
-        speed_limits.resize(speeds_split.size(),5);
-        std::vector<double> constrained_speeds = worker.apply_speed_limits(speeds_split,speed_limits);
-
-        // Test adaptive lookahead
-        double lookahead = worker.get_adaptive_lookahead(5);   
-        std::vector<double> lookahead_speeds = worker.get_lookahead_speed(points_split,constrained_speeds, lookahead);
-
-        trajectory = worker.compose_trajectory_from_centerline(points_and_target_speeds, vehicle_state, ros::Time::now(), lane_change_start_id, 15.0);
-        //Valid Trajectory has at least 2 points
-        EXPECT_TRUE(trajectory.size() > 2);
-
-        lanelet::BasicLineString2d route_geometry = worker.create_route_geom(starting_downtrack,start_id, ending_downtrack,cmw);
-        int nearest_pt_geom = worker.getNearestRouteIndex(route_geometry, vehicle_state);
-
-        //Test create lanechange route
-        lanelet::Lanelet start_lanelet = map->laneletLayer.get(start_id);
-        lanelet::Lanelet end_lanelet = map->laneletLayer.get(end_id);
-        lanelet::BasicPoint2d start_position(vehicle_state.X_pos_global, vehicle_state.Y_pos_global);
-        lanelet::BasicPoint2d end_position = end_lanelet.centerline2d().basicLineString().back() ;
-        lanelet::BasicLineString2d lc_route = worker.create_lanechange_path(start_position, start_lanelet, end_position, end_lanelet);
-
-        //Test Compute heading frame between two points
-         Eigen::Isometry2d frame = worker.compute_heading_frame(start_position, end_position);
 
     }
 

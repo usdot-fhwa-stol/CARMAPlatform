@@ -1,7 +1,7 @@
 #include <sstream>
-#include <inlanecruising_plugin/inlanecruising_plugin.h>
+#include <basic_autonomy/basic_autonomy.h>
 
-namespace inlanecruising_plugin
+namespace basic_autonomy
 {
 namespace log
 {
@@ -17,7 +17,7 @@ std::string basicPointToStream(lanelet::BasicPoint2d point)
 /**
  * \brief Helper function to convert a PointSpeedPair to a string
  */ 
-std::string pointSpeedPairToStream(PointSpeedPair point)
+std::string pointSpeedPairToStream(waypoint_generation::PointSpeedPair point)
 {
   std::ostringstream out;
   out << "Point: " << basicPointToStream(point.point) << " Speed: " << point.speed;
@@ -58,4 +58,4 @@ void printDoublesPerLineWithPrefix(const std::string& prefix, const std::vector<
 }
 
 }  // namespace log
-}  // namespace inlanecruising_plugin
+}  // namespace basic_autonomy

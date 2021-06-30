@@ -32,6 +32,7 @@ set(CATKIN_DEPS
   tf
   tf2
   tf2_geometry_msgs
+  basic_autonomy
 )
 
 ## Find catkin macros and libraries
@@ -69,12 +70,12 @@ include_directories(
 file(GLOB_RECURSE headers */*.hpp */*.h)
 
 add_executable(${PROJECT_NAME}
-  ${headers}
-  src/unobstructed_lanechange.cpp
   src/main.cpp)
 
 
-add_library(unobstructed_lanechange_plugin_lib src/unobstructed_lanechange.cpp src/smoothing/BSpline.cpp)
+add_library(unobstructed_lanechange_plugin_lib
+src/unobstructed_lanechange.cpp
+)
 
 add_dependencies(unobstructed_lanechange_plugin_lib ${catkin_EXPORTED_TARGETS})
 
@@ -123,8 +124,8 @@ catkin_add_gmock(${PROJECT_NAME}-test
  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/test)
 target_link_libraries(${PROJECT_NAME}-test unobstructed_lanechange_plugin_lib ${catkin_LIBRARIES})
 
-if(CATKIN_ENABLE_TESTING)
-  find_package(rostest REQUIRED)
-  add_rostest_gtest(rostest_ulc test/ulc_plugin.test test/rostest_ulc.cpp)
-  target_link_libraries(rostest_ulc ${catkin_LIBRARIES})
-endif()
+# if(CATKIN_ENABLE_TESTING)
+#   find_package(rostest REQUIRED)
+#   add_rostest_gtest(rostest_ulc test/ulc_plugin.test test/rostest_ulc.cpp)
+#   target_link_libraries(rostest_ulc ${catkin_LIBRARIES})
+# endif()

@@ -26,7 +26,16 @@ set( CATKIN_DEPS
   roscpp
   std_msgs
   cav_msgs
+  cav_srvs
+  carma_utils
+  trajectory_utils
+  autoware_msgs
   carma_wm
+  tf
+  tf2
+  tf2_geometry_msgs
+  roslib
+  carma_debug_msgs
 )
 
 ## Find catkin macros and libraries
@@ -61,7 +70,8 @@ include_directories(
 )
 
 add_library(basic_autonomy 
-  src/helper_functions.cpp
+  src/basic_autonomy.cpp
+  src/smoothing/BSpline.cpp
 )
 
 add_dependencies(basic_autonomy ${catkin_EXPORTED_TARGETS})
@@ -75,7 +85,7 @@ target_link_libraries(basic_autonomy ${catkin_LIBRARIES})
 ## Install ##
 #############
 
-install(DIRECTORY include/${PROJECT_NAME}/
+install(DIRECTORY include
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
@@ -86,7 +96,19 @@ install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
+## Install Other Resources
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
 #############
 ## Testing ##
 #############
 
+if(CATKIN_ENABLE_TESTING)
+
+  catkin_add_gmock(${PROJECT_NAME}-test 
+    test/test_waypoint_generation.cpp
+  )
+  target_link_libraries(${PROJECT_NAME}-test basic_autonomy ${catkin_LIBRARIES})
+endif()

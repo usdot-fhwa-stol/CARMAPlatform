@@ -26,6 +26,15 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
+  <depend>cav_srvs</depend>
   <depend>cav_msgs</depend>
+  <depend>carma_utils</depend>
+  <depend>autoware_msgs</depend>
   <depend>carma_wm</depend>
+  <depend>tf</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend> 
+  <depend>trajectory_utils</depend>   
+  <depend>roslib</depend>
+  <depend>carma_debug_msgs</depend> 
 </package>

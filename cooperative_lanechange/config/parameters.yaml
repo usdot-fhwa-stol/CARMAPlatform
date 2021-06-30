@@ -86,6 +86,15 @@ mid_fraction : 0.5
 #Units: meters
 min_desired_gap: 5.0
 
-# Double : The additional downtrack beyond requested end dist used to fit points along spline. Extra points removed before returning trajectory. Feature not used if end dist is route end
-#Units: meters
-ending_buffer_downtrack : 5.0
+##Unused parameters added for using basic autonomy library
+#Int: Amount to downsample input lanelet centerline data on turns. Value corresponds to saving each nth point.
+turn_downsample_ratio: 0
+
+#Double: Curve re-sampling step size in m
+curve_resample_step_size: 1.0
+
+#Double: Number of meters behind the first maneuver that need to be included in points for curvature calculation
+back_distance: 0.0
+
+#Double: 
+buffer_ending_downtrack: 5.0

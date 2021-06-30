@@ -20,7 +20,7 @@
 #include <deque>
 #include <algorithm>
 #include <stdexcept>
-namespace inlanecruising_plugin
+namespace basic_autonomy
 {
 namespace smoothing
 {
@@ -74,4 +74,4 @@ std::vector<double> moving_average_filter(const std::vector<double> input, int w
 }
 
 };  // namespace smoothing
-};  // namespace inlanecruising_plugin
+};  // namespace basic_autonomy

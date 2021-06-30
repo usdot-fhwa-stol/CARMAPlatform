@@ -23,7 +23,6 @@
 #include <trajectory_utils/trajectory_utils.h>
 #include <trajectory_utils/conversions/conversions.h>
 #include <carma_utils/containers/containers.h>
-#include "smoothing/filters.h"
 #include <cav_msgs/MobilityPath.h>
 #include <cav_msgs/RoadwayObstacle.h>
 #include <lanelet2_extension/traffic_rules/CarmaUSTrafficRules.h>
@@ -88,7 +87,10 @@ namespace cooperative_lanechange
         pnh_->param<double>("starting_fraction", starting_fraction_, 0.2);
         pnh_->param<double>("mid_fraction",mid_fraction_, 0.5);
         pnh_->param<double>("min_desired_gap",min_desired_gap_, 5.0);
-        pnh_->param<double>("ending_buffer_downtrack", ending_buffer_downtrack_, 5.0);
+        pnh_->param<int>("turn_downsample_ratio", turn_downsample_ratio_, 0);
+        pnh_->param<double>("curve_resample_step_size", curve_resample_step_size_, 0);
+        pnh_->param<double>("back_distance", back_distance_, 0.0);
+        pnh_->param<double>("buffer_ending_downtrack", buffer_ending_downtrack_, 0);
 
         //tf listener for looking up earth to map transform 
         tf2_listener_.reset(new tf2_ros::TransformListener(tf2_buffer_));
@@ -152,10 +154,10 @@ namespace cooperative_lanechange
         ROS_DEBUG_STREAM("traffic rules created]");
         
         lanelet::routing::RoutingGraphUPtr map_graph = lanelet::routing::RoutingGraph::build(*(wm_->getMap()), *traffic_rules);
-        ROS_DEBUG_STREAM("Graph created]");
+        ROS_DEBUG_STREAM("Graph created");
 
         auto temp_route = map_graph->getRoute(start_lanelet, end_lanelet);
-        ROS_DEBUG_STREAM("Route created]");
+        ROS_DEBUG_STREAM("Route created");
         
         auto shortest_path2 = temp_route.get().shortestPath();
         ROS_DEBUG_STREAM("Shorted path created size: " << shortest_path2.size());
@@ -479,425 +481,32 @@ namespace cooperative_lanechange
         if(current_downtrack >= maneuver_plan.front().lane_change_maneuver.end_dist){
             request_sent = false;
         }
+        basic_autonomy::waypoint_generation::DetailedTrajConfig wpg_detail_config;
+        basic_autonomy::waypoint_generation::GeneralTrajConfig wpg_general_config;
+
+        wpg_general_config = basic_autonomy::waypoint_generation::compose_general_trajectory_config("cooperative_lanechange", downsample_ratio_, turn_downsample_ratio_);
+        
+        wpg_detail_config = basic_autonomy::waypoint_generation::compose_detailed_trajectory_config(trajectory_time_length_, 
+                                                                            curve_resample_step_size_, minimum_speed_, 
+                                                                            max_accel_, lateral_accel_limit_, 
+                                                                            speed_moving_average_window_size_, 
+                                                                            curvature_moving_average_window_size_, back_distance_,
+                                                                            buffer_ending_downtrack_);
+
         ROS_DEBUG_STREAM("Current downtrack:"<<current_downtrack);
-        auto points_and_target_speeds = maneuvers_to_points(maneuver_plan, current_downtrack, wm_,req.vehicle_state);
+        //auto points_and_target_speeds = maneuvers_to_points(maneuver_plan, current_downtrack, wm_,req.vehicle_state);
+        auto points_and_target_speeds = basic_autonomy::waypoint_generation::maneuvers_to_points_lanechange(maneuver_plan, current_downtrack, wm_, 
+                                                                                                    req.vehicle_state, maneuver_fraction_completed_, 
+                                                                                                    ending_state_before_buffer_, wpg_detail_config);
         ROS_DEBUG_STREAM("Maneuvers to points size:"<<points_and_target_speeds.size());
         auto downsampled_points = carma_utils::containers::downsample_vector(points_and_target_speeds, downsample_ratio_);
 
-        int starting_lanelet_id = stoi(maneuver_plan.front().lane_change_maneuver.starting_lane_id);
-
-        double final_max_speed = maneuver_plan.front().lane_change_maneuver.end_speed;
-        std::vector<cav_msgs::TrajectoryPlanPoint> trajectory_points;
-        trajectory_points = compose_trajectory_from_centerline(downsampled_points, req.vehicle_state, req.header.stamp, starting_lanelet_id, final_max_speed);
+        std::vector<cav_msgs::TrajectoryPlanPoint> trajectory_points = basic_autonomy::waypoint_generation::compose_lanechange_trajectory_from_centerline(downsampled_points, req.vehicle_state, req.header.stamp,
+                                                                                         wm_, ending_state_before_buffer_, wpg_detail_config);
         ROS_DEBUG_STREAM("Compose Trajectory size:"<<trajectory_points.size());
         return trajectory_points;
 
     }
-
-    std::vector<PointSpeedPair> CooperativeLaneChangePlugin::maneuvers_to_points(const std::vector<cav_msgs::Maneuver>& maneuvers,
-    double max_starting_downtrack, const carma_wm::WorldModelConstPtr& wm,const cav_msgs::VehicleState& state){
-        std::vector<PointSpeedPair> points_and_target_speeds;
-        std::unordered_set<lanelet::Id> visited_lanelets;
-        ROS_DEBUG_STREAM("Maneuvers to points maneuver size:"<<maneuvers.size());
-        bool first = true;
-        for(const auto& maneuver : maneuvers)
-        {
-            if(maneuver.type != cav_msgs::Maneuver::LANE_CHANGE)
-            {
-                throw std::invalid_argument("Cooperative Lane Change does  not support this maneuver type");
-            }
-            cav_msgs::LaneChangeManeuver lane_change_maneuver = maneuver.lane_change_maneuver;
-            
-            double starting_downtrack = lane_change_maneuver.start_dist;
-            if(first){
-                if(starting_downtrack > max_starting_downtrack)
-                {
-                    starting_downtrack = max_starting_downtrack;
-                }
-                first = false;
-            }
-            ROS_DEBUG_STREAM("Maneuvers to points starting downtrack:"<<starting_downtrack);
-            // //Get lane change route
-            double ending_downtrack = lane_change_maneuver.end_dist;
-            ROS_DEBUG_STREAM("Maneuvers to points ending downtrack:"<<ending_downtrack);
-                //Get geometry for maneuver
-            if (starting_downtrack >= ending_downtrack)
-            {
-                throw std::invalid_argument("Start distance is greater than or equal to end distance");
-            }
-
-            //get route geometry between starting and ending downtracks
-            auto route_geometry = create_route_geom(starting_downtrack, stoi(lane_change_maneuver.starting_lane_id), ending_downtrack + ending_buffer_downtrack_, wm);
-            ROS_DEBUG_STREAM("route geometry size:"<<route_geometry.size());
-
-            lanelet::BasicPoint2d state_pos(state.X_pos_global, state.Y_pos_global);
-            double current_downtrack = wm_->routeTrackPos(state_pos).downtrack;
-            int nearest_pt_index = basic_autonomy::waypoint_generation::get_nearest_index_by_downtrack(route_geometry, wm_, current_downtrack);
-            int ending_pt_index = basic_autonomy::waypoint_generation::get_nearest_index_by_downtrack(route_geometry, wm_, ending_downtrack); 
-            ROS_DEBUG_STREAM("Nearest pt index in maneuvers to points:"<<nearest_pt_index);
-            ROS_DEBUG_STREAM("Ending point index in maneuvers to points:"<<ending_pt_index);
-
-            ROS_DEBUG_STREAM("State x:"<<state.X_pos_global<<" y:"<<state.Y_pos_global);
-            ROS_DEBUG_STREAM("Curr pose x:" << pose_msg_.pose.position.x << " y:"<<pose_msg_.pose.position.y);
-
-            //find percentage of maneuver left - for yield plugin use
-            int maneuver_points_size = route_geometry.size() - ending_pt_index;
-            double maneuver_fraction_completed_ = nearest_pt_index/maneuver_points_size;
-
-            ending_state_before_buffer_.X_pos_global = route_geometry[ending_pt_index].x();
-            ending_state_before_buffer_.Y_pos_global = route_geometry[ending_pt_index].y();
-            
-            ROS_DEBUG_STREAM("ending_state_before_buffer_:"<<ending_state_before_buffer_.X_pos_global << 
-                    ", ending_state_before_buffer_.Y_pos_global" << ending_state_before_buffer_.Y_pos_global);
-            
-            double route_length = wm_->getRouteEndTrackPos().downtrack;
-            
-            if(ending_downtrack + ending_buffer_downtrack_ < route_length){
-                ending_pt_index = basic_autonomy::waypoint_generation::get_nearest_index_by_downtrack(route_geometry, wm_, ending_downtrack + ending_buffer_downtrack_);
-            }
-            else{
-               ending_pt_index = route_geometry.size() - 1;
-            }
-            ROS_DEBUG_STREAM("The latest indexes used for curvature calculation: nearest_pt_index: " << nearest_pt_index << ", ending_pt_index: " << ending_pt_index);
-
-            lanelet::BasicLineString2d future_route_geometry(route_geometry.begin() + nearest_pt_index, route_geometry.begin() + ending_pt_index);
-            first = true;
-            ROS_DEBUG_STREAM("future geom size:"<<future_route_geometry.size());
-            for(auto p :future_route_geometry)
-            {
-                if(first && points_and_target_speeds.size() !=0){
-                    first = false;
-                    continue; // Skip the first point if we have already added points from a previous maneuver to avoid duplicates
-                }
-                PointSpeedPair pair;
-                pair.point = p;
-                if(state.longitudinal_vel  < minimum_speed_){
-                    pair.speed = lane_change_maneuver.end_speed;
-                }
-                else{
-                    pair.speed = state.longitudinal_vel;
-                }
-                points_and_target_speeds.push_back(pair);
-
-            }
-        }
-        ROS_DEBUG_STREAM("Const speed assigned:"<<points_and_target_speeds.back().speed);
-
-    
-        return points_and_target_speeds;
-
-    }
-
-    std::vector<cav_msgs::TrajectoryPlanPoint> CooperativeLaneChangePlugin::compose_trajectory_from_centerline(
-    const std::vector<PointSpeedPair>& points, const cav_msgs::VehicleState& state, const ros::Time& state_time, int starting_lanelet_id, double max_speed)
-    {
-        ROS_DEBUG_STREAM("Input points size in: compose_trajectory_from_centerline" << points.size());
-        int nearest_pt_index = basic_autonomy::waypoint_generation::get_nearest_index_by_downtrack(points, wm_, state);
-        ROS_DEBUG_STREAM("nearest_pt_index: " << nearest_pt_index);
-
-
-        std::vector<PointSpeedPair> future_points(points.begin() + nearest_pt_index + 1, points.end()); // Points in front of current vehicle position
-        ROS_DEBUG_STREAM("future_points points size in: " << future_points.size());
-        
-        //Compute yaw values from original trajectory
-        std::vector<lanelet::BasicPoint2d> future_geom_points;
-        std::vector<double> final_actual_speeds;
-        basic_autonomy::waypoint_generation::split_point_speed_pairs(future_points, &future_geom_points, &final_actual_speeds);
-        std::vector<double> final_yaw_values = carma_wm::geometry::compute_tangent_orientations(future_geom_points);
-    
-        // Compute points to local downtracks
-        std::vector<double> downtracks = carma_wm::geometry::compute_arc_lengths(future_geom_points);
-        final_actual_speeds = smoothing::moving_average_filter(final_actual_speeds, speed_moving_average_window_size_);
-
-        // Convert speeds to times
-        std::vector<double> times;
-        trajectory_utils::conversions::speed_to_time(downtracks, final_actual_speeds, &times);
-
-        // Remove extra points
-        ROS_DEBUG_STREAM("Before removing extra buffer points, future_geom_points.size()" << future_geom_points.size());
-        int end_dist_pt_index = basic_autonomy::waypoint_generation::get_nearest_index_by_downtrack(future_geom_points, wm_, ending_state_before_buffer_);
-        future_geom_points.resize(end_dist_pt_index + 1);
-        times.resize(end_dist_pt_index + 1);
-        final_yaw_values.resize(end_dist_pt_index + 1);
-        ROS_DEBUG_STREAM("After removing extra buffer points, future_geom_points.size()" << future_geom_points.size());
-
-        // Build trajectory points
-        std::vector<cav_msgs::TrajectoryPlanPoint> traj_points =
-            trajectory_from_points_times_orientations(future_geom_points, times, final_yaw_values, state_time);
-        
-        //std::vector<cav_msgs::TrajectoryPlanPoint> traj;
-        return traj_points;
-
-    }
-
-    std::vector<cav_msgs::TrajectoryPlanPoint> CooperativeLaneChangePlugin::trajectory_from_points_times_orientations(
-    const std::vector<lanelet::BasicPoint2d>& points, const std::vector<double>& times, const std::vector<double>& yaws,
-    ros::Time startTime) const
-    {
-        if (points.size() != times.size() || points.size() != yaws.size())
-        {
-            throw std::invalid_argument("All input vectors must have the same size");
-        }
-
-        std::vector<cav_msgs::TrajectoryPlanPoint> traj;
-        traj.reserve(points.size());
-        for (int i = 0; i < points.size(); i++)
-        {
-            cav_msgs::TrajectoryPlanPoint tpp;
-            ros::Duration relative_time(times[i]);
-            tpp.target_time = startTime + relative_time;
-            tpp.x = points[i].x();
-            tpp.y = points[i].y();
-            tpp.yaw = yaws[i];
-
-            tpp.controller_plugin_name = "default";
-            tpp.planner_plugin_name = plugin_discovery_msg_.name;
-
-            traj.push_back(tpp);
-        }
-        
-        return traj;
-    }
-
-        double CooperativeLaneChangePlugin::compute_curvature_at(const cooperative_lanechange::smoothing::SplineI& fit_curve, double step_along_the_curve) const
-    {
-        lanelet::BasicPoint2d f_prime_pt = fit_curve.first_deriv(step_along_the_curve);
-        lanelet::BasicPoint2d f_prime_prime_pt = fit_curve.second_deriv(step_along_the_curve);
-        // Convert to 3d vector to do 3d vector operations like cross.
-        Eigen::Vector3d f_prime = {f_prime_pt.x(), f_prime_pt.y(), 0};
-        Eigen::Vector3d f_prime_prime = {f_prime_prime_pt.x(), f_prime_prime_pt.y(), 0};
-        return (f_prime.cross(f_prime_prime)).norm()/(pow(f_prime.norm(),3));
-    }
-
-
-    double CooperativeLaneChangePlugin::get_adaptive_lookahead(double velocity) const
-    {
-        // lookahead:
-        // v<10kph:  5m
-        // 10kph<v<50kph:  0.5*v
-        // v>50kph:  25m
-
-        double lookahead = minimum_lookahead_distance_;
-
-        if (velocity < minimum_lookahead_speed_)
-        {
-            lookahead = minimum_lookahead_distance_;
-        } 
-        else if (velocity >= minimum_lookahead_speed_ && velocity < maximum_lookahead_speed_)
-        {
-            lookahead = 2.0 * velocity;
-        } 
-        else lookahead = maximum_lookahead_distance_;
-
-        return lookahead;
-
-    }
-
-    std::vector<double> CooperativeLaneChangePlugin::get_lookahead_speed(const std::vector<lanelet::BasicPoint2d>& points, const std::vector<double>& speeds, const double& lookahead) const
-    {
-  
-        if (lookahead < minimum_lookahead_distance_)
-        {
-            throw std::invalid_argument("Invalid lookahead value");
-        }
-
-        if (speeds.size() < 1)
-        {
-            throw std::invalid_argument("Invalid speeds vector");
-        }
-
-        if (speeds.size() != points.size())
-        {
-            throw std::invalid_argument("Speeds and Points lists not same size");
-        }
-
-        std::vector<double> out;
-        out.reserve(speeds.size());
-
-        for (int i = 0; i < points.size(); i++)
-        {
-            int idx = i;
-            double min_dist = std::numeric_limits<double>::max();
-            for (int j=i+1; j < points.size(); j++){
-            double dist = lanelet::geometry::distance2d(points[i],points[j]);
-            if (abs(lookahead - dist) <= min_dist){
-                idx = j;
-                min_dist = abs(lookahead - dist);
-            }
-            }
-            out.push_back(speeds[idx]);
-        }
-        
-        return out;
-        }
-
-    std::vector<double> CooperativeLaneChangePlugin::apply_speed_limits(const std::vector<double> speeds,
-                                                             const std::vector<double> speed_limits) const
-    {
-        if (speeds.size() != speed_limits.size())
-        {
-            throw std::invalid_argument("Speeds and speed limit lists not same size");
-        }
-        std::vector<double> out;
-        for (size_t i = 0; i < speeds.size(); i++)
-        {
-            out.push_back(std::min(speeds[i], speed_limits[i]));
-        }
-
-        return out;
-    }
-
-    std::unique_ptr<smoothing::SplineI>
-    CooperativeLaneChangePlugin::compute_fit(const std::vector<lanelet::BasicPoint2d>& basic_points)
-    {
-        if (basic_points.size() < 3)
-        {
-            ROS_WARN_STREAM("Insufficient Spline Points");
-            return nullptr;
-        }
-        std::unique_ptr<smoothing::SplineI> spl = std::make_unique<smoothing::BSpline>();
-        spl->setPoints(basic_points);
-        return spl;
-    }
-
-
-    Eigen::Isometry2d CooperativeLaneChangePlugin::compute_heading_frame(const lanelet::BasicPoint2d& p1,
-                                                              const lanelet::BasicPoint2d& p2) const
-    {
-    Eigen::Rotation2Dd yaw(atan2(p2.y() - p1.y(), p2.x() - p1.x()));
-
-    return carma_wm::geometry::build2dEigenTransform(p1, yaw);
-    }
-
-    std::vector<PointSpeedPair> CooperativeLaneChangePlugin::constrain_to_time_boundary(const std::vector<PointSpeedPair>& points,double time_span)
-    {
-        std::vector<lanelet::BasicPoint2d> basic_points;
-        std::vector<double> speeds;
-        basic_autonomy::waypoint_generation::split_point_speed_pairs(points, &basic_points, &speeds);
-
-        std::vector<double> downtracks = carma_wm::geometry::compute_arc_lengths(basic_points);
-
-        size_t time_boundary_exclusive_index =
-        trajectory_utils::time_boundary_index(downtracks, speeds, trajectory_time_length_);
-
-        if (time_boundary_exclusive_index == 0)
-        {
-            throw std::invalid_argument("No points to fit in timespan"); 
-        }
-
-        std::vector<PointSpeedPair> time_bound_points;
-        time_bound_points.reserve(time_boundary_exclusive_index);
-
-        if (time_boundary_exclusive_index == points.size())
-        {
-            time_bound_points.insert(time_bound_points.end(), points.begin(),
-                                    points.end());  // All points fit within time boundary
-        }
-        else
-        {
-            time_bound_points.insert(time_bound_points.end(), points.begin(),
-                                    points.begin() + time_boundary_exclusive_index - 1);  // Limit points by time boundary
-        }
-
-        return time_bound_points;
-
-    }
-
-     lanelet::BasicLineString2d CooperativeLaneChangePlugin::create_lanechange_path(lanelet::ConstLanelet& start_lanelet,lanelet::ConstLanelet& end_lanelet)
-    {
-        std::vector<lanelet::BasicPoint2d> centerline_points={};
-        lanelet::BasicLineString2d centerline_start_lane = start_lanelet.centerline2d().basicLineString();
-        lanelet::BasicLineString2d centerline_end_lane = end_lanelet.centerline2d().basicLineString();
-
-        lanelet::BasicPoint2d start_lane_pt  = centerline_start_lane[0];
-        lanelet::BasicPoint2d end_lane_pt = centerline_end_lane[0];
-        double dist = sqrt(pow((end_lane_pt.x() - start_lane_pt.x()),2) + pow((end_lane_pt.y() - start_lane_pt.y()),2));
-
-        int total_points = std::min(centerline_start_lane.size(), centerline_end_lane.size());
-        double delta_step = 1.0/total_points;
-
-        centerline_points.push_back(start_lane_pt);
-
-        for(int i=1;i<total_points;i++){ // start from 1 as star_lane_pt is included
-            lanelet::BasicPoint2d current_position;
-            start_lane_pt = centerline_start_lane[i];
-            end_lane_pt = centerline_end_lane[i];
-            double delta = delta_step*i;
-            current_position.x() = end_lane_pt.x()*delta + (1-delta)* start_lane_pt.x();
-            current_position.y() = end_lane_pt.y()*delta + (1-delta)* start_lane_pt.y();
-
-            centerline_points.push_back(current_position);
-        }
-
-        centerline_points.push_back(centerline_end_lane.back()); 
-
-        std::unique_ptr<smoothing::SplineI> fit_curve = compute_fit(centerline_points);
-        if(!fit_curve)
-        {
-            throw std::invalid_argument("Could not fit a spline curve along the given trajectory!");
-        }
-
-        lanelet::BasicLineString2d lc_route;
-
-        double scaled_steps_along_curve = 0.0; // from 0 (start) to 1 (end) for the whole trajectory
-        for(int i =0;i<centerline_points.size();i++){
-            lanelet::BasicPoint2d p = (*fit_curve)(scaled_steps_along_curve);
-            lc_route.push_back(p);
-            scaled_steps_along_curve += 1.0/total_points;
-        }
-        lc_route.push_back(centerline_end_lane.back()); // at 1.0 scaled steps
-
-        return lc_route;
-    }
-
-    std::vector<lanelet::BasicPoint2d> CooperativeLaneChangePlugin::create_route_geom( double starting_downtrack, int starting_lane_id, double ending_downtrack, const carma_wm::WorldModelConstPtr& wm)
-    {
-        //Create route geometry for lane change maneuver
-        //Starting downtrack maybe in the previous lanelet, if it is, have a lane follow until new lanelet starts
-        std::vector<lanelet::ConstLanelet> lanelets_in_path = wm->getLaneletsBetween(starting_downtrack, ending_downtrack, true, false);
-        std::vector<lanelet::BasicPoint2d> centerline_points = {};
-        int lane_change_iteration = 0;
-        if(lanelets_in_path[0].id() != starting_lane_id){
-            bool lane_change_req= false;
-            //Check if future lanelet is lane change lanelet
-            for(int i=0;i<lanelets_in_path.size();i++){
-                if(lanelets_in_path[i].id() == starting_lane_id){
-                    lane_change_req = true;
-                    lane_change_iteration = i;
-                    break;
-                }
-            }
-            if(!lane_change_req){
-                throw std::invalid_argument("Current path does not require a lane change. Request Incorrectly sent to Cooperative lane change plugin");
-            }
-            //lane_follow until lane_change req
-            lanelet::BasicLineString2d lane_follow_points =lanelets_in_path[lane_change_iteration-1].centerline2d().basicLineString();
-            centerline_points.insert(centerline_points.end(), lane_follow_points.begin(), lane_follow_points.end() - 1); // -1 to avoid duplicate points in linestrings
-        }
-        
-        lanelet::BasicLineString2d first=lanelets_in_path[lane_change_iteration].centerline2d().basicLineString();
-        lanelet::BasicLineString2d last=lanelets_in_path[lane_change_iteration + 1].centerline2d().basicLineString();
-        lanelet::BasicLineString2d lane_change_points = create_lanechange_path(lanelets_in_path[lane_change_iteration],lanelets_in_path[lane_change_iteration+1]);
-        centerline_points.insert(centerline_points.end(),lane_change_points.begin(),lane_change_points.end() );
-
-        //"lane_follow" beyond lanechange
-        lanelet::BasicLineString2d buffer_lane_follow = {};
-        ROS_DEBUG_STREAM("Created lanechanging geometry from id: " << lanelets_in_path[lane_change_iteration].id() << 
-            " to id: " << lanelets_in_path[lane_change_iteration + 1].id());
-        if (lane_change_iteration + 2 < lanelets_in_path.size())
-        {
-            for ( int i = (lane_change_iteration + 2); i < lanelets_in_path.size(); i++)
-            {
-                buffer_lane_follow = lanelets_in_path[i].centerline2d().basicLineString();
-                ROS_DEBUG_STREAM("Adding extra points from lanelet lanelets_in_path[i].id() :" << lanelets_in_path[i].id() << " of size: " 
-                    << buffer_lane_follow.size() - 1 << ", ending at x:" << buffer_lane_follow.back().x() << ", y:" << buffer_lane_follow.back().y());
-                centerline_points.insert(centerline_points.end(), buffer_lane_follow.begin() + 1, buffer_lane_follow.end()); // + 1 to avoid duplicate points
-            }
-        }
-        ROS_DEBUG_STREAM("Reached the end of create_route_geom function");
-
-        return centerline_points;
-        
-    }
+   
 }
 

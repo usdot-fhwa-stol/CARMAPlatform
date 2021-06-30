@@ -31,6 +31,7 @@ set( CATKIN_DEPS
   trajectory_utils
   autoware_msgs
   carma_wm
+  basic_autonomy
   tf
   tf2
   tf2_geometry_msgs
@@ -72,13 +73,13 @@ add_executable( ${PROJECT_NAME}
   src/main.cpp)
 add_library(inlanecruising_plugin_library 
   src/inlanecruising_plugin.cpp
-  src/smoothing/BSpline.cpp
 )
-target_link_libraries(inlanecruising_plugin_library ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-add_dependencies(inlanecruising_plugin_library ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(${PROJECT_NAME} inlanecruising_plugin_library ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_dependencies(inlanecruising_plugin_library ${catkin_EXPORTED_TARGETS})
+target_link_libraries(inlanecruising_plugin_library ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
 add_dependencies(${PROJECT_NAME} inlanecruising_plugin_library ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME} inlanecruising_plugin_library ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_library(helper src/helper.cpp)
 target_link_libraries(helper
@@ -118,7 +119,6 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gmock(${PROJECT_NAME}-test 
     test/test_inlanecruising_plugin_planning.cpp
-    test/test_inlanecruising_plugin.cpp
   )
   target_link_libraries(${PROJECT_NAME}-test inlanecruising_plugin_library ${catkin_LIBRARIES})
 
