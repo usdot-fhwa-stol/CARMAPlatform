@@ -80,7 +80,7 @@ namespace cooperative_lanechange
              * 
              * \return the distance between subject vehicle and vehicle 2
              */ 
-            double find_current_gap(long veh2_lanelet_id, double veh2_downtrack) const ;
+            double find_current_gap(long veh2_lanelet_id, double veh2_downtrack, cav_msgs::VehicleState& state) const ;
             /**
              * \brief Converts a set of requested Lane Change maneuvers to point speed limit pairs. 
              * 

@@ -47112,7 +47112,7 @@
     <nd ref='1060674' />
     <nd ref='1060675' />
     <nd ref='1310033' />
-    <tag k='subtype' v='dashed' />
+    <tag k='subtype' v='solid_dashed' />
     <tag k='type' v='line_thin' />
   </way>
   <way id='1061' visible='true' version='1'>

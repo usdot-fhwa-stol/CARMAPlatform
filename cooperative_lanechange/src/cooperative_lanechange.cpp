@@ -122,20 +122,19 @@ namespace cooperative_lanechange
     }
 
 
-    double CooperativeLaneChangePlugin::find_current_gap(long veh2_lanelet_id, double veh2_downtrack) const {
+    double CooperativeLaneChangePlugin::find_current_gap(long veh2_lanelet_id, double veh2_downtrack, cav_msgs::VehicleState& state) const {
                 
         //find downtrack distance between ego and lag vehicle
         ROS_DEBUG_STREAM("entered find_current_gap");
         double current_gap = 0.0;
-        lanelet::BasicPoint2d ego_pos(pose_msg_.pose.position.x,pose_msg_.pose.position.y);
+        lanelet::BasicPoint2d ego_pos(state.X_pos_global, state.Y_pos_global);
         //double ego_current_downtrack = wm_->routeTrackPos(ego_pos).downtrack;
         
         lanelet::LaneletMapConstPtr const_map(wm_->getMap());
         lanelet::ConstLanelet veh2_lanelet = const_map->laneletLayer.get(veh2_lanelet_id);
         ROS_DEBUG_STREAM("veh2_lanelet id " << veh2_lanelet.id());
 
-        lanelet::BasicPoint2d current_loc(pose_msg_.pose.position.x, pose_msg_.pose.position.y);
-        auto current_lanelets = lanelet::geometry::findNearest(const_map->laneletLayer, current_loc, 10);       
+        auto current_lanelets = lanelet::geometry::findNearest(const_map->laneletLayer, ego_pos, 10);       
         if(current_lanelets.size() == 0)
         {
             ROS_WARN_STREAM("Cannot find any lanelet in map!");
@@ -148,15 +147,25 @@ namespace cooperative_lanechange
         lanelet::ConstLanelet start_lanelet = veh2_lanelet;
         lanelet::ConstLanelet end_lanelet = current_lanelet;
         lanelet::traffic_rules::TrafficRulesUPtr traffic_rules = lanelet::traffic_rules::TrafficRulesFactory::create(lanelet::Locations::Germany,lanelet::Participants::VehicleCar);
-        ROS_DEBUG_STREAM("traffic rules created]");
+        ROS_DEBUG_STREAM("traffic rules created");
         
         lanelet::routing::RoutingGraphUPtr map_graph = lanelet::routing::RoutingGraph::build(*(wm_->getMap()), *traffic_rules);
-        ROS_DEBUG_STREAM("Graph created]");
+        ROS_DEBUG_STREAM("Graph created");
 
         auto temp_route = map_graph->getRoute(start_lanelet, end_lanelet);
-        ROS_DEBUG_STREAM("Route created]");
-        
-        auto shortest_path2 = temp_route.get().shortestPath();
+        ROS_DEBUG_STREAM("Route created");
+
+        //Throw exception if there is no shortest path from veh2 to subject vehicle
+        lanelet::routing::LaneletPath shortest_path2;
+        if(temp_route)
+        {
+            shortest_path2 = temp_route.get().shortestPath();
+        }
+        else{
+            ROS_ERROR_STREAM("No path exists from roadway object to subject");
+            throw std::invalid_argument("No path exists from roadway object to subject");
+        }
+ 
         ROS_DEBUG_STREAM("Shorted path created size: " << shortest_path2.size());
         for (auto llt : shortest_path2)
         {
@@ -251,7 +260,7 @@ namespace cooperative_lanechange
             //get current_gap
             ROS_DEBUG_STREAM("veh2_lanelet_id:" << veh2_lanelet_id << "veh2_downtrack" << veh2_downtrack);
             
-            double current_gap = find_current_gap(veh2_lanelet_id,veh2_downtrack);
+            double current_gap = find_current_gap(veh2_lanelet_id,veh2_downtrack, req.vehicle_state);
             ROS_DEBUG_STREAM("Current gap:"<<current_gap);
             //get desired gap - desired time gap (default 3s)* relative velocity
             double relative_velocity = current_speed_ - veh2_speed;
