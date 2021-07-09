@@ -20,6 +20,7 @@
 #include <cav_msgs/MobilityOperation.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <novatel_gps_msgs/Inspva.h>
 #include <boost/optional.hpp>
 
 #include "port_drayage_plugin/port_drayage_state_machine.h"
@@ -32,16 +33,24 @@ namespace port_drayage_plugin
      */
     struct PortDrayageMobilityOperationMsg
     {
-        std::string cargo_id;
+        boost::optional<std::string> cargo_id;
         std::string operation;
         PortDrayageEvent port_drayage_event_type; // PortDrayageEvent associated with this message
         bool has_cargo; // Flag to indicate whether vehicle has cargo during this action
-        std::string current_action_id;
-        std::string next_action_id;
-        boost::optional<double> dest_longitude;
-        boost::optional<double> dest_latitude;
+        boost::optional<std::string> current_action_id; // Identifier for the action this message is related to
+        boost::optional<double> dest_longitude;  // Destination longitude for the carma vehicle
+        boost::optional<double> dest_latitude;   // Destination latitude for the carma vehicle
         boost::optional<double> start_longitude; // Starting longitude of the carma vehicle
-        boost::optional<double> start_latitude; // Starting latitude of the carma vehicle
+        boost::optional<double> start_latitude;  // Starting latitude of the carma vehicle
+    };
+
+    /**
+     * Convenience struct for storing the vehicle's current latitude/longitude coordinates
+     */
+    struct LatLonCoordinate
+    {
+        double latitude;
+        double longitude;
     };
 
     /**
@@ -61,9 +70,10 @@ namespace port_drayage_plugin
             PortDrayageStateMachine _pdsm;
             std::string _host_id;
             std::string _host_bsm_id;
-            std::string _cmv_id;
+            unsigned long _cmv_id;
             std::string _cargo_id;
             std::function<void(cav_msgs::MobilityOperation)> _publish_mobility_operation;
+            bool _has_cargo;
 
             // Data member for storing the strategy_params field of the last processed port drayage MobilityOperation message intended for this vehicle's cmv_id
             std::string _previous_strategy_params;
@@ -78,7 +88,7 @@ namespace port_drayage_plugin
             /**
              * \brief Standard constructor for the PortDrayageWorker
              * 
-             * \param cmv_id The Carrier Motor Vehicle ID string for the host
+             * \param cmv_id The Carrier Motor Vehicle ID (an unsigned long) for the host
              * vehicle
              * 
              * \param cargo_id The identification string for the cargo carried
@@ -96,7 +106,7 @@ namespace port_drayage_plugin
              * comparing the current vehicle's speed to 0.0
              */
             PortDrayageWorker(
-                std::string cmv_id,
+                unsigned long cmv_id,
                 std::string cargo_id,
                 std::string host_id,
                 std::function<void(cav_msgs::MobilityOperation)> mobility_operations_publisher, 
@@ -105,7 +115,9 @@ namespace port_drayage_plugin
                 _cargo_id(cargo_id),
                 _host_id(host_id),
                 _publish_mobility_operation(mobility_operations_publisher),
-                _stop_speed_epsilon(stop_speed_epsilon) {};
+                _stop_speed_epsilon(stop_speed_epsilon) {
+                    _has_cargo = (_cargo_id == "") ? false : true;
+                };
 
 
             /**
@@ -150,6 +162,11 @@ namespace port_drayage_plugin
             void mobility_operation_message_parser(std::string mobility_operation_strategy_params);
 
             /**
+             * \brief Callback to store the host vehicle's current latitude/longitude coordinates 
+             */
+            void set_current_gps_position(const novatel_gps_msgs::InspvaConstPtr& gps_position);
+
+            /**
              * \brief Spin and process data
              */
             bool spin();
@@ -167,6 +184,9 @@ namespace port_drayage_plugin
 
             // PortDrayageMobilityOperationMsg object for storing strategy_params data of a received port drayage MobilityOperation message intended for this vehicle's cmv_id
             PortDrayageMobilityOperationMsg _latest_mobility_operation_msg;
+
+            // LatLonCoordinate object for storing the vehicle's current gps latitude/longitude coordinates
+            LatLonCoordinate _current_gps_position;
 
     };
 } // namespace port_drayage_plugin

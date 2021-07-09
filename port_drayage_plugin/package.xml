@@ -13,6 +13,7 @@
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
   <depend>carma_wm</depend>
+  <depend>novatel_gps_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
