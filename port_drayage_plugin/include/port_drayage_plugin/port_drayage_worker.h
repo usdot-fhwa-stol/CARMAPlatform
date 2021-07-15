@@ -18,6 +18,7 @@
 
 #include <cav_msgs/ManeuverPlan.h>
 #include <cav_msgs/MobilityOperation.h>
+#include <cav_msgs/UIInstructions.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <cav_srvs/SetActiveRoute.h>
@@ -28,6 +29,22 @@
 namespace port_drayage_plugin
 {
     /**
+     * \brief Enum containing the different destination types that the Port Drayage
+     * vehicle can arrive at.
+     */
+    enum PortDrayageDestination
+    {
+        STAGING_AREA_ENTRY,
+        STAGING_AREA_EXIT,
+        PORT_ENTRY,
+        PORT_EXIT,
+        LOADING_AREA,
+        UNLOADING_AREA,
+        INSPECTION_POINT,
+        HOLDING_AREA
+    };
+
+    /**
      * Convenience struct for storing all data contained in a received MobilityOperation message's
      * strategy_params field with strategy "carma/port_drayage"
      */
@@ -36,6 +53,7 @@ namespace port_drayage_plugin
         std::string cargo_id;
         std::string operation;
         PortDrayageEvent port_drayage_event_type; // PortDrayageEvent associated with this message
+        PortDrayageDestination destination_type; // PortDrayageDestination associated with this message's destination
         bool has_cargo; // Flag to indicate whether vehicle has cargo during this action
         std::string current_action_id;
         std::string next_action_id;
@@ -65,6 +83,7 @@ namespace port_drayage_plugin
             std::string _cmv_id;
             std::string _cargo_id;
             std::function<void(cav_msgs::MobilityOperation)> _publish_mobility_operation;
+            std::function<void(cav_msgs::UIInstructions)> _publish_ui_instructions;
             std::function<bool(cav_srvs::SetActiveRoute)> _call_set_active_route_client;
 
             // Data member for storing the strategy_params field of the last processed port drayage MobilityOperation message intended for this vehicle's cmv_id
@@ -102,12 +121,14 @@ namespace port_drayage_plugin
                 std::string cargo_id,
                 std::string host_id,
                 std::function<void(cav_msgs::MobilityOperation)> mobility_operations_publisher,
+                std::function<void(cav_msgs::UIInstructions)> ui_instructions_publisher,
                 std::function<bool(cav_srvs::SetActiveRoute)> set_active_route_service_client, 
                 double stop_speed_epsilon) :
                 _cmv_id(cmv_id),
                 _cargo_id(cargo_id),
                 _host_id(host_id),
                 _publish_mobility_operation(mobility_operations_publisher),
+                _publish_ui_instructions(ui_instructions_publisher),
                 _call_set_active_route_client(set_active_route_service_client),
                 _stop_speed_epsilon(stop_speed_epsilon) {
                     initialize();
@@ -166,6 +187,19 @@ namespace port_drayage_plugin
              * \param mobility_operation_strategy_params the strategy_params field of a MobilityOperation message
              */
             void mobility_operation_message_parser(std::string mobility_operation_strategy_params);
+
+            /**
+             * \brief Composes a cav_msgs::UIInstructions message that will notify the WEB UI to create a popup
+             *  that notifies a user that the system can be engaged on a received route to the location specified
+             *  by the last received port drayage mobility operation message intended for this CMV.
+             */
+            cav_msgs::UIInstructions compose_ui_instructions();
+
+            /**
+             * \brief Helper function to convert a PortDrayageDestination enum to human-readable string.
+             * \param destination a PortDrayageDestination enum
+             */
+            std::string PortDrayageDestination_to_string(const PortDrayageDestination& destination_enum);
 
             /**
              * \brief Spin and process data

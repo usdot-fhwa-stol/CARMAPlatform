@@ -75,10 +75,30 @@ namespace port_drayage_plugin
         // Call service client to set the new active route
         bool is_route_generation_successful = _call_set_active_route_client(route_req);
 
-        // Throw exception if route generation was not successful
-        if (!is_route_generation_successful) {
+        if (is_route_generation_successful) {
+            // Only if the system has already received a proper port drayage mobility operation message before
+            cav_msgs::UIInstructions msg = compose_ui_instructions();
+        }
+        else {
+            // Throw exception if route generation was not successful
             throw std::invalid_argument("Route generation failed. Routing could not be completed.");
         }
+    }
+
+    cav_msgs::UIInstructions PortDrayageWorker::compose_ui_instructions() {
+        // Convert the PortDrayageDestination enum to a human-readable string
+        std::string destination_string = PortDrayageDestination_to_string(_latest_mobility_operation_msg.destination_type);
+
+        // Populate the UIInstructions message
+        cav_msgs::UIInstructions ui_instructions_msg;
+        ui_instructions_msg.stamp = ros::Time::now();
+        ui_instructions_msg.msg = "A new route to the " + destination_string + " has been received. "
+                                  "Select YES to engage the system on the route, or select NO to remain "
+                                  "disengaged.";
+        ui_instructions_msg.type = cav_msgs::UIInstructions::ACK_REQUIRED;
+        ui_instructions_msg.response_service = "/guidance/set_guidance_active"; 
+
+        return ui_instructions_msg;
     }
 
     cav_srvs::SetActiveRoute PortDrayageWorker::compose_set_active_route_request() const {
@@ -172,6 +192,7 @@ namespace port_drayage_plugin
 
         if(_latest_mobility_operation_msg.operation == "MOVING_TO_LOADING_AREA") {
             _latest_mobility_operation_msg.port_drayage_event_type = PortDrayageEvent::RECEIVED_NEW_DESTINATION;
+            _latest_mobility_operation_msg.destination_type = PortDrayageDestination::LOADING_AREA;
         }
 
         // Parse starting longitude/latitude fields if 'location' field exists in strategy_params:
@@ -204,5 +225,43 @@ namespace port_drayage_plugin
         ROS_DEBUG_STREAM("current action id: " << _latest_mobility_operation_msg.current_action_id);
         ROS_DEBUG_STREAM("next action id: " << _latest_mobility_operation_msg.next_action_id);
     }
+
+    std::string PortDrayageWorker::PortDrayageDestination_to_string(const PortDrayageDestination& destination_enum) {
+        std::string destination_string;
+
+        switch (destination_enum) {
+            case PortDrayageDestination::STAGING_AREA_ENTRY:
+                destination_string = "Staging Area Entry";
+                break;
+            case PortDrayageDestination::STAGING_AREA_EXIT:
+                destination_string = "Staging Area Exit";
+                break;
+            case PortDrayageDestination::PORT_ENTRY:
+                destination_string = "Port Entry";
+                break;
+            case PortDrayageDestination::PORT_EXIT:
+                destination_string = "Port Exit";
+                break;
+            case PortDrayageDestination::LOADING_AREA:
+                destination_string = "Loading Area";
+                break;
+            case PortDrayageDestination::UNLOADING_AREA:
+                destination_string = "Unloading Area";
+                break;
+            case PortDrayageDestination::INSPECTION_POINT:
+                destination_string = "Inspection Point";
+                break;
+            case PortDrayageDestination::HOLDING_AREA:
+                destination_string = "Holding Area";
+                break;
+            default:
+                destination_string = "Unknown Destination Type";
+                ROS_DEBUG_STREAM("Unkown destination string for PortDrayageDestination enum: " << destination_enum);
+                break;
+        }
+
+        return destination_string;
+    }
+
 
 } // namespace port_drayage_plugin

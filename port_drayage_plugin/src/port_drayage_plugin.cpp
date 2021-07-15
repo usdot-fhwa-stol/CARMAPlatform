@@ -37,6 +37,9 @@ namespace port_drayage_plugin
         ros::Publisher outbound_mob_op = _nh->advertise<cav_msgs::MobilityOperation>("outgoing_mobility_operation", 5);
         _outbound_mobility_operations_publisher = std::make_shared<ros::Publisher>(outbound_mob_op);
 
+        ros::Publisher ui_instructions_pub = _nh->advertise<cav_msgs::UIInstructions>("ui_instructions", 5);
+        _ui_instructions_publisher = std::make_shared<ros::Publisher>(ui_instructions_pub);
+
         _set_active_route_client = _nh->serviceClient<cav_srvs::SetActiveRoute>("/guidance/set_active_route");
 
         PortDrayageWorker pdw{
@@ -45,6 +48,9 @@ namespace port_drayage_plugin
             "HOST_ID",
             [this](cav_msgs::MobilityOperation msg) {
                _outbound_mobility_operations_publisher->publish<cav_msgs::MobilityOperation>(msg);
+            },
+            [this](cav_msgs::UIInstructions msg) {
+               _ui_instructions_publisher->publish<cav_msgs::UIInstructions>(msg);
             },
             std::bind(&PortDrayagePlugin::call_set_active_route_client, this, std::placeholders::_1),
             speed_epsilon
