@@ -1,0 +1,13 @@
+# The length of the trajectory in time domain, in seconds
+trajectory_time_length: 6.0 # Trajectory length in seconds
+curve_resample_step_size: 1.0 # Curve re-sampling step size in m
+default_downsample_ratio: 36 # Amount to downsample input lanelet centerline data. Value corresponds to saving each nth point.
+turn_downsample_ratio: 20 # Amount to downsample input lanelet centerline data on turns. Value corresponds to saving each nth point.
+minimum_speed: 2.2352 # Minimum allowable speed in m/s
+speed_moving_average_window_size: 5 # Size of the window used in the moving average filter to smooth the output speeds
+curvature_moving_average_window_size: 9 # Size of the window used in the moving average filter to smooth the computed curvature
+back_distance: 20.0 # Number of meters behind the first maneuver that need to be included in points for curvature calculation
+max_accel_multiplier: 0.85 # Multiplier of max_accel to bring the value under max_accel
+lat_accel_multiplier: 0.50 # Multiplier of lat_accel to bring the value under lat_accel TODO needs to be optimized
+enable_object_avoidance: false # Activates object avoidance logic 
+buffer_ending_downtrack: 20.0 # Additional distance beyond ending downtrack to ensure sufficient points
