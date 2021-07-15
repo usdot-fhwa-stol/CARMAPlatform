@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ros/ros.h>
+#include "platoon_control_config.h"
 
 
 
@@ -15,6 +16,8 @@ namespace platoon_control
     public:
 
     	PIDController();
+
+        PlatooningControlPluginConfig config_;
     	
     	// ~PIDController();
 
@@ -39,17 +42,8 @@ namespace platoon_control
 
     private:
 
-    	double _dt = 0.1;
-        double _max = 100.0;
-        double _min = -100.0;
-        double _Kp = 1.0;
-        double _Kd = -0.5;
-        double _Ki = 0.0;
         double _pre_error = 0.0;
         double _integral = 0.0;
-
-        double integratorMax = 100;
-        double integratorMin = -100;
 
     };
 }

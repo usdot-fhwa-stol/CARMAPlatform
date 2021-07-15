@@ -21,7 +21,7 @@ Loads parameters and configures logging for the node
  
 -->
 <launch>
-<node pkg="platoon_strategic" type="platoon_strategic" name="platoon_strategic">
-        <rosparam command="load" file="$(find platoon_strategic)/config/parameters.yaml" />
+  <node name="platoon_strategic" pkg="platoon_strategic" type="platoon_strategic">
+      <rosparam command="load" file="$(find platoon_strategic)/config/parameters.yaml" />
     </node>
 </launch>

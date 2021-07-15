@@ -28,13 +28,15 @@
 #include <carma_wm/WMListener.h>
 #include <functional>
 #include <platooning_tactical_plugin/smoothing/SplineI.h>
+#include <unordered_set>
+#include <carma_debug_msgs/TrajectoryCurvatureSpeeds.h>
 
 #include "platooning_tactical_plugin_config.h"
 
 namespace platooning_tactical_plugin
 {
 using PublishPluginDiscoveryCB = std::function<void(const cav_msgs::Plugin&)>;
-
+using DebugPublisher = std::function<void(const carma_debug_msgs::TrajectoryCurvatureSpeeds&)>;
 /**
  * \brief Convenience class for pairing 2d points with speeds
  */ 
@@ -114,11 +116,12 @@ public:
    * \param points The set of points that define the current lane the vehicle is in and are defined based on the request planning maneuvers. 
    *               These points must be in the same lane as the vehicle and must extend in front of it though it is fine if they also extend behind it. 
    * \param state The current state of the vehicle
+   * \param state_time The abosolute time which the provided vehicle state corresponds to
    * 
    * \return A list of trajectory points to send to the carma planning stack
    */ 
   std::vector<cav_msgs::TrajectoryPlanPoint>
-  compose_trajectory_from_centerline(const std::vector<PointSpeedPair>& points, const cav_msgs::VehicleState& state);
+  compose_trajectory_from_centerline(const std::vector<PointSpeedPair>& points, const cav_msgs::VehicleState& state, const ros::Time& state_time);
 
   /**
    * \brief Method combines input points, times, orientations, and an absolute start time to form a valid carma platform trajectory
@@ -197,11 +200,64 @@ public:
    */ 
   double get_adaptive_lookahead(double velocity);
 
+  /**
+   * \brief Returns the min, and its idx, from the vector of values, excluding given set of values
+   * 
+   * \param values vector of values
+   * 
+   * \param excluded set of excluded values
+   * 
+   * \return minimum value and its idx
+   */ 
+  std::pair<double, size_t> min_with_exclusions(const std::vector<double>& values, const std::unordered_set<size_t>& excluded) const;
+
+  /**
+   * \brief Applies the longitudinal acceleration limit to each point's speed
+   * 
+   * \param downtracks downtrack distances corresponding to each speed
+   * \param curv_speeds vehicle velocity in m/s.
+   * \param accel_limit vehicle longitudinal acceleration in m/s^2.
+   * 
+   * \return optimized speeds for each dowtrack points that satisfies longitudinal acceleration
+   */ 
+  std::vector<double> optimize_speed(const std::vector<double>& downtracks, const std::vector<double>& curv_speeds, double accel_limit);
+
+  int get_nearest_index_by_downtrack(const std::vector<lanelet::BasicPoint2d>& points,
+                                               const cav_msgs::VehicleState& state) const;
+
+  /**
+   * \brief Given the curvature fit, computes the curvature at the given step along the curve
+   * 
+   * \param step_along_the_curve Value in double from 0.0 (curvature start) to 1.0 (curvature end) representing where to calculate the curvature
+   * 
+   * \param fit_curve curvature fit
+   * 
+   * \return Curvature (k = 1/r, 1/meter)
+   */ 
+  double compute_curvature_at(const smoothing::SplineI& fit_curve, double step_along_the_curve) const;
+
+  /**
+   * \brief Attaches back_distance length of points in front of future points
+   * 
+   * \param points all point speed pairs
+   * \param nearest_pt_index idx of nearest point to the vehicle
+   * \param future_points future points before which to attach the points
+   * \param back_distance number of back distance in meters
+   * 
+   * \return point speed pairs with back distance length of points in front of future points
+   */ 
+  std::vector<PointSpeedPair> attach_back_points(const std::vector<PointSpeedPair>& points, const int nearest_pt_index, 
+                               std::vector<PointSpeedPair> future_points, double back_distance) const;
+
+
 private:
   carma_wm::WorldModelConstPtr wm_;
   PlatooningTacticalPluginConfig config_;
   PublishPluginDiscoveryCB plugin_discovery_publisher_;
 
   cav_msgs::Plugin plugin_discovery_msg_;
+  carma_debug_msgs::TrajectoryCurvatureSpeeds debug_msg_;
+
+  cav_msgs::VehicleState ending_state_before_buffer; //state before applying extra points for curvature calculation that are removed later
 };
 };  // namespace platooning_tactical_plugin

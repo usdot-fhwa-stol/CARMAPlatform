@@ -1,5 +1,17 @@
-# The length of the trajectory in time domain, in seconds
-trajectory_time_length: 6.0
-
-# The default control plugin name
-control_plugin_name: "platoon_control"
+timeHeadway: 3.5
+standStillHeadway: 22.0
+maxAccel: 1.5
+Kp: 0.4
+Kd: 0.05 #0.1
+Ki: 0.0 #0.035
+max_value: 2.0
+min_value: -10.0
+CMD_TIMESTEP: 100
+adjustmentCap: 11.0
+dt: 0.1
+integratorMax: 100
+integratorMin: -100
+wheelbase: 3.09
+lowpass_gain: 1.0
+lookahead_ratio: 1.6
+min_lookahead_dist: 15.0

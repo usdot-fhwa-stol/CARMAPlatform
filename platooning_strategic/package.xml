@@ -12,4 +12,9 @@
   <depend>std_msgs</depend>
   <depend>carma_wm</depend>
   <depend>cav_srvs</depend>
+  <depend>lanelet2_extension</depend>
+  <depend>tf</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
 </package>

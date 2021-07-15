@@ -14,12 +14,12 @@
  */
 
 #include <ros/ros.h>
-#include "platoon_strategic.hpp"
+#include "platoon_strategic_plugin_node.h"
 
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "platoon_strategic");
-    platoon_strategic::PlatoonStrategicPlugin node;
+    platoon_strategic::PlatoonStrategicPluginNode node;
     node.run();
     return 0;
 };

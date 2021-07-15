@@ -16,7 +16,7 @@
  the License.
 -->
 <launch>
+    <node name="platooning_tactical_plugin" pkg="platooning_tactical_plugin" type="platooning_tactical_plugin">
     <rosparam command="load" file="$(find platooning_tactical_plugin)/config/parameters.yaml"/>
-    <!--  platooning tactical plugin Node -->
-    <node name="platooning_tactical_plugin" pkg="platooning_tactical_plugin" type="platooning_tactical_plugin"/>
+    </node>
 </launch>

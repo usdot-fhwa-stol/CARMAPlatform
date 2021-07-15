@@ -57,7 +57,7 @@ TEST(PlatooningTacticalPluginTest, validate_eigen)
 TEST(PlatooningTacticalPluginTest, trajectory_from_points_times_orientations)
 {
   PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
+  config.default_downsample_ratio = 1;
   std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
   PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
 
@@ -111,7 +111,7 @@ TEST(PlatooningTacticalPluginTest, trajectory_from_points_times_orientations)
 TEST(PlatooningTacticalPluginTest, constrain_to_time_boundary)
 {
   PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
+  config.default_downsample_ratio = 1;
   std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
   PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
 
@@ -162,10 +162,11 @@ TEST(PlatooningTacticalPluginTest, constrain_to_time_boundary)
   ASSERT_NEAR(1.0, time_bound_points[5].speed, 0.0000001);
 }
 
+
 TEST(PlatooningTacticalPluginTest, getNearestPointIndex)
 {
   PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
+  config.default_downsample_ratio = 1;
   std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
   PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
 
@@ -197,51 +198,11 @@ TEST(PlatooningTacticalPluginTest, getNearestPointIndex)
   ASSERT_EQ(3, plugin.getNearestPointIndex(points, state));
 }
 
-TEST(PlatooningTacticalPluginTest, get_lookahead_speed)
-{
-  PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
-  std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
-  PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
-
-  lanelet::BasicPoint2d p1(10.0, 0.0);
-  lanelet::BasicPoint2d p2(20.0, 0.0);
-  lanelet::BasicPoint2d p3(30, 0.0);
-  lanelet::BasicPoint2d p4(40, 0.0);
-
-  std::vector<lanelet::BasicPoint2d> points = { p1, p2, p3, p4 };
-  std::vector<double> speeds = {8, 9, 10, 11};
-
-  std::vector<double> out;
-  out = plugin.get_lookahead_speed(points, speeds, 10);
-  ASSERT_EQ(4, out.size());
-  ASSERT_EQ(9, out[0]);
-  ASSERT_EQ(10, out[1]);
-  ASSERT_EQ(11, out[2]);
-  ASSERT_EQ(11, out[3]);
-
-  // ASSERT_EQ(3, plugin.getNearestPointIndex(points, state));
-}
-
-TEST(PlatooningTacticalPluginTest, get_adaptive_lookahead)
-{
-  PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
-  std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
-  PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
-
-  
-  ASSERT_EQ(5.0, plugin.get_adaptive_lookahead(2.0));
-  ASSERT_EQ(2.0*6.0, plugin.get_adaptive_lookahead(6.0));
-  ASSERT_EQ(25.0, plugin.get_adaptive_lookahead(22.0));
-
-
-}
 
 TEST(PlatooningTacticalPluginTest, splitPointSpeedPairs)
 {
   PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
+  config.default_downsample_ratio = 1;
   std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
   PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
 
@@ -293,7 +254,7 @@ TEST(PlatooningTacticalPluginTest, splitPointSpeedPairs)
 TEST(PlatooningTacticalPluginTest, compute_fit)
 {
   PlatooningTacticalPluginConfig config;
-  config.downsample_ratio = 1;
+  config.default_downsample_ratio = 1;
   std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
   PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
 
@@ -306,6 +267,10 @@ TEST(PlatooningTacticalPluginTest, compute_fit)
   p = lanelet::BasicPoint2d(21, 30);
   points.push_back(p);
   p = lanelet::BasicPoint2d(22, 30);
+  points.push_back(p);
+  p = lanelet::BasicPoint2d(23, 30);
+  points.push_back(p);
+  p = lanelet::BasicPoint2d(24, 30);
   points.push_back(p);
   std::unique_ptr<smoothing::SplineI> fit_curve = plugin.compute_fit(points);
   std::vector<lanelet::BasicPoint2d> spline_points;
@@ -390,4 +355,232 @@ TEST(PlatooningTacticalPluginTest, compute_fit)
   std::unique_ptr<smoothing::SplineI> fit_s_curve = plugin.compute_fit(points);
 
   ASSERT_TRUE(!!fit_s_curve);
+}
+
+TEST(PlatooningTacticalPluginTest, optimize_speed)
+{
+  PlatooningTacticalPluginConfig config;
+  config.default_downsample_ratio = 1;
+  std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
+  PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
+
+  std::vector<double> downtracks, curv_speeds;
+  downtracks.push_back(0);
+  downtracks.push_back(2);
+  downtracks.push_back(4);
+  downtracks.push_back(6);
+  downtracks.push_back(8);
+  downtracks.push_back(10);
+  downtracks.push_back(12);
+  downtracks.push_back(14);
+  downtracks.push_back(16);
+
+  config.max_accel = 2.0;
+  double max_accel = config.max_accel;
+
+  ASSERT_THROW(plugin.optimize_speed(downtracks, curv_speeds, max_accel), std::invalid_argument);
+
+  curv_speeds.push_back(1);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(4);
+  curv_speeds.push_back(4);
+  curv_speeds.push_back(1);
+  curv_speeds.push_back(0);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(6);
+
+  ASSERT_THROW(plugin.optimize_speed(downtracks, curv_speeds, -10), std::invalid_argument);
+
+  std::vector<double> expected_results;
+  expected_results.push_back(1);
+  expected_results.push_back(3);
+  expected_results.push_back(4);
+  expected_results.push_back(3);
+  expected_results.push_back(1);
+  expected_results.push_back(0);
+  expected_results.push_back(2.82843);
+  expected_results.push_back(3);
+  expected_results.push_back(4.12311);
+  auto test_results = plugin.optimize_speed(downtracks, curv_speeds, max_accel);
+  
+  ASSERT_NEAR(expected_results[0], test_results[0], 0.001);
+  ASSERT_NEAR(expected_results[1], test_results[1], 0.001);
+  ASSERT_NEAR(expected_results[2], test_results[2], 0.001);
+  ASSERT_NEAR(expected_results[3], test_results[3], 0.001);
+  ASSERT_NEAR(expected_results[4], test_results[4], 0.001);
+  ASSERT_NEAR(expected_results[5], test_results[5], 0.001);
+  ASSERT_NEAR(expected_results[6], test_results[6], 0.001);
+  ASSERT_NEAR(expected_results[7], test_results[7], 0.001);
+  ASSERT_NEAR(expected_results[8], test_results[8], 0.001);
+
+  // Check if the first speed is same
+  curv_speeds = {};
+  curv_speeds.push_back(4);
+  curv_speeds.push_back(1);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(4);
+  curv_speeds.push_back(1);
+  curv_speeds.push_back(0);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(3);
+  curv_speeds.push_back(6);
+
+  expected_results = {};
+  expected_results.push_back(4);
+  expected_results.push_back(2.82847);
+  expected_results.push_back(3);
+  expected_results.push_back(3);
+  expected_results.push_back(1);
+  expected_results.push_back(0);
+  expected_results.push_back(2.82843);
+  expected_results.push_back(3);
+  expected_results.push_back(4.12311);
+
+  test_results = plugin.optimize_speed(downtracks, curv_speeds, max_accel);
+
+  ASSERT_NEAR(expected_results[0], test_results[0], 0.001);
+  ASSERT_NEAR(expected_results[1], test_results[1], 0.001);
+  ASSERT_NEAR(expected_results[2], test_results[2], 0.001);
+  ASSERT_NEAR(expected_results[3], test_results[3], 0.001);
+  ASSERT_NEAR(expected_results[4], test_results[4], 0.001);
+  ASSERT_NEAR(expected_results[5], test_results[5], 0.001);
+  ASSERT_NEAR(expected_results[6], test_results[6], 0.001);
+  ASSERT_NEAR(expected_results[7], test_results[7], 0.001);
+  ASSERT_NEAR(expected_results[8], test_results[8], 0.001);
+  
+}
+
+TEST(PlatooningTacticalPluginTest, compute_curvature_at)
+{
+  PlatooningTacticalPluginConfig config;
+  config.default_downsample_ratio = 1;
+  std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
+  PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
+
+  ///////////////////////
+  // Check straight line
+  ///////////////////////
+  std::vector<lanelet::BasicPoint2d> points;
+  auto p = lanelet::BasicPoint2d(20, 30);
+  points.push_back(p);
+  p = lanelet::BasicPoint2d(21, 30);
+  points.push_back(p);
+  p = lanelet::BasicPoint2d(22, 30);
+  points.push_back(p);
+  p = lanelet::BasicPoint2d(23, 30);
+  points.push_back(p);
+  std::unique_ptr<smoothing::SplineI> fit_curve = plugin.compute_fit(points);
+
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_curve), 0.0), 0, 0.001); // check start
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_curve), 1.0), 0, 0.001); // check end
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_curve), 0.23), 0, 0.001); // check random 1
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_curve), 0.97), 0, 0.001); // check random 2
+
+  ///////////////////////
+  // Circle (0,0 centered, R radius)
+  ///////////////////////
+  points = {};
+  std::vector<double> x,y;
+  double x_ = 0.0;
+  double radius = 20;
+  for (int i = 0; i < 10; i++)
+  { 
+    x.push_back(x_);
+    y.push_back(-sqrt(pow(radius,2) - pow(x_,2))); //y-
+    x_ += radius/(double)10;
+  }
+  for (int i = 0; i < 10; i++)
+  { 
+    x.push_back(x_);
+    y.push_back(sqrt(pow(radius,2) - pow(x_,2))); //y+
+    x_ -= radius/(double)10;
+  }
+  for (int i = 0; i < 10; i++)
+  { 
+    x.push_back(x_);
+    y.push_back(sqrt(pow(radius,2) - pow(x_,2))); //y+
+    x_ -= radius/(double)10;
+  }
+  for (int i = 0; i < 10; i++)
+  { 
+    x.push_back(x_);
+    y.push_back(-sqrt(pow(radius,2) - pow(x_,2))); //y-
+    x_ += radius/(double)10;
+  }
+  y.push_back(-sqrt(pow(radius,2) - pow(x_,2))); // to close the loop with redundant first point
+
+  for (auto i = 0; i < y.size(); i ++)
+  {
+    points.push_back({x[i],y[i]});
+  }
+
+  std::unique_ptr<smoothing::SplineI> fit_circle = plugin.compute_fit(points);
+  double param = 0.0;
+  for (int i = 0 ; i < 40; i ++)
+  {
+    auto pt = (*fit_circle)(param);
+    param += 1.0/40.0;
+  }
+  auto pt = (*fit_circle)(param);
+
+  double circle_param = 0.0;
+  for ( auto i= 0; i < 50; i++)
+  {
+    circle_param += 0.02;
+  }
+
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_circle), 0.0), 1.0/radius, 0.005); // check start curvature 1/r
+  // check curvature is consistent
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_circle), 0.42), plugin.compute_curvature_at((*fit_circle), 0.85), 0.005); 
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_circle), 0.0), plugin.compute_curvature_at((*fit_circle), 1.0), 0.005); 
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_circle), 0.23), plugin.compute_curvature_at((*fit_circle), 0.99), 0.005); 
+  ASSERT_NEAR(plugin.compute_curvature_at((*fit_circle), 0.12), plugin.compute_curvature_at((*fit_circle), 0.76), 0.005);  
+}
+
+TEST(PlatooningTacticalPluginTest, attach_back_points)
+{
+  PlatooningTacticalPluginConfig config;
+  config.default_downsample_ratio = 1;
+  std::shared_ptr<carma_wm::CARMAWorldModel> wm = std::make_shared<carma_wm::CARMAWorldModel>();
+  PlatooningTacticalPlugin plugin(wm, config, [&](auto msg) {});
+
+  std::vector<PointSpeedPair> points;
+  std::vector<PointSpeedPair> future_points;
+
+  PointSpeedPair p;
+  p.point = lanelet::BasicPoint2d(0, 1);
+  p.speed = 1.0;
+  points.push_back(p);
+  p.point = lanelet::BasicPoint2d(1, 2);
+  points.push_back(p);
+  p.point = lanelet::BasicPoint2d(2, 3);
+  points.push_back(p);
+  p.point = lanelet::BasicPoint2d(3, 4);
+  future_points.push_back(p);
+  points.push_back(p);
+  p.point = lanelet::BasicPoint2d(4, 5);
+  future_points.push_back(p);
+  points.push_back(p);
+  p.point = lanelet::BasicPoint2d(5, 6);
+  future_points.push_back(p);
+  points.push_back(p);
+
+  int nearest_pt_index = 2;
+
+  auto result = plugin.attach_back_points(points, nearest_pt_index, future_points, 1.5);
+
+  ASSERT_EQ(points.size()  -1, result.size());
+  ASSERT_NEAR(1.0, result[0].point.x(), 0.0000001);
+  ASSERT_NEAR(2.0, result[1].point.x(), 0.0000001);
+  ASSERT_NEAR(3.0, result[2].point.x(), 0.0000001);
+  ASSERT_NEAR(4.0, result[3].point.x(), 0.0000001);
+  ASSERT_NEAR(5.0, result[4].point.x(), 0.0000001);
+
+  ASSERT_NEAR(2.0, result[0].point.y(), 0.0000001);
+  ASSERT_NEAR(3.0, result[1].point.y(), 0.0000001);
+  ASSERT_NEAR(4.0, result[2].point.y(), 0.0000001);
+  ASSERT_NEAR(5.0, result[3].point.y(), 0.0000001);
+  ASSERT_NEAR(6.0, result[4].point.y(), 0.0000001);
+
 }

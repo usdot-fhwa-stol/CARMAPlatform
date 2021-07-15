@@ -1,5 +1,21 @@
-# The length of the trajectory in time domain, in seconds
-trajectory_time_length: 6.0
-
-# The default control plugin name
-control_plugin_name: "mpc_follower"
+maxPlatoonSize: 10
+algorithmType: 0
+statusMessageInterval: 100
+infoMessageInterval: 200
+mvr_duration: 15
+timeHeadway: 2.5
+standStillHeadway: 12.0
+maxAllowedJoinTimeGap: 15.0
+maxAllowedJoinGap: 90.0
+desiredJoinTimeGap: 4.0
+desiredJoinGap: 30.0
+waitingStateTimeout: 25.0
+cmdSpeedMaxAdjustment: 10.0
+lowerBoundary: 1.6
+upperBoundary: 1.7
+maxSpacing: 4.0
+minSpacing: 3.9
+minGap: 22.0
+maxGap: 32.0
+maxCrosstrackError: 0.8
+vehicle_length: 5.0

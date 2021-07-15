@@ -18,6 +18,40 @@
 
 namespace platoon_strategic
 {
+    struct PlatoonPlan {
+        
+        bool valid;
+        long planStartTime;
+        std::string planId;
+        std::string peerId;
+        // PlatoonPlan(){} ;
+        PlatoonPlan():valid(false), planStartTime(0), planId(""), peerId("") {} ;
+        PlatoonPlan(bool valid, long planStartTime, std::string planId, std::string peerId): 
+            valid(valid), planStartTime(planStartTime), planId(planId), peerId(peerId) {}  
+    };
+
+    /**
+        * A response to an MobilityRequest message.
+        * ACK - indicates that the plugin accepts the MobilityRequest and will handle making any adjustments needed to avoid a conflict
+        * NACK - indicates that the plugin rejects the MobilityRequest and would suggest the other vehicle replan
+        * NO_RESPONSE - indicates that the plugin is indifferent but sees no conflict
+    */
+
+    enum MobilityRequestResponse {
+            ACK,
+            NACK,
+            NO_RESPONSE
+    };
+
+    enum PlatoonState{
+        STANDBY,
+        LEADERWAITING,
+        LEADER,
+        CANDIDATEFOLLOWER,
+        FOLLOWER
+    };
+
+    
         struct PlatoonMember{
             // Static ID is permanent ID for each vehicle
             std::string staticId;
@@ -31,36 +65,37 @@ namespace platoon_strategic
             double vehiclePosition;
             // The local time stamp when the host vehicle update any informations of this member
             long   timestamp;
-            PlatoonMember(): staticId(""), bsmId(""), commandSpeed(0.0), vehicleSpeed(0.0), timestamp(0) {} 
+            // PlatoonMember(){};
+            PlatoonMember(): staticId(""), bsmId(""), commandSpeed(0.0), vehicleSpeed(0.0), vehiclePosition(0.0), timestamp(0) {} 
             PlatoonMember(std::string staticId, std::string bsmId, double commandSpeed, double vehicleSpeed, double vehiclePosition, long timestamp): staticId(staticId),
-            bsmId(bsmId), commandSpeed(commandSpeed), vehicleSpeed(vehicleSpeed), timestamp(timestamp) {}
+            bsmId(bsmId), commandSpeed(commandSpeed), vehicleSpeed(vehicleSpeed), vehiclePosition(vehiclePosition), timestamp(timestamp) {}
         };
+        
 
 
     class PlatoonManager
     {
     public:
 
-        std::vector<PlatoonMember> platoon;
-
         PlatoonManager();
 
-        PlatoonManager(std::shared_ptr<ros::NodeHandle> nh);
+        // todo initialize as empty
+        std::vector<PlatoonMember> platoon{};
 
-        ros::Subscriber twist_sub_;
-        ros::Subscriber cmd_sub_;
-        ros::Subscriber pose_sub_;
+        
 
         // Current vehicle pose in map
         geometry_msgs::PoseStamped pose_msg_;
 
+        double current_downtrack_didtance_ = 0;
+
         // wm listener pointer and pointer to the actual wm object
-        std::shared_ptr<carma_wm::WMListener> wml_;
-        carma_wm::WorldModelConstPtr wm_;
+        // std::shared_ptr<carma_wm::WMListener> wml_;
+        // carma_wm::WorldModelConstPtr wm_;
 
 
 
-        void memberUpdates(const std::string& senderId,const std::string& platoonId,const std::string& senderBsmId,const std::string& params);
+        void memberUpdates(const std::string& senderId,const std::string& platoonId,const std::string& senderBsmId,const std::string& params, const double& DtD);
 
         /**
          * Given any valid platooning mobility STATUS operation parameters and sender staticId,
@@ -100,8 +135,7 @@ namespace platoon_strategic
         int getNumberOfVehicleInFront();
         double getCurrentPlatoonLength();
         double getPlatoonRearDowntrackDistance();
-
-
+        
         double getDistanceFromRouteStart() const;
         double getDistanceToFrontVehicle();
         double getCurrentSpeed() const;
@@ -109,37 +143,59 @@ namespace platoon_strategic
         double getCurrentDowntrackDistance() const;
 
 
-        int platoonSize;
-        std::string leaderID;
-        std::string currentPlatoonID;
-        bool isFollower;
+        int platoonSize = 2;
+        std::string leaderID = "";
+        std::string currentPlatoonID = "test_plan";
+        bool isFollower = false;
 
-        double current_speed_;
-        double command_speed_;
+        double current_speed_ = 0;
+        double command_speed_ = 0;
+
+        PlatoonState current_platoon_state = PlatoonState::STANDBY;
+
+        PlatoonPlan current_plan;
+
+        std::string targetLeaderId = "2";
+
+        std::string HostMobilityId = "hostid";
 
 
     private:
+
+    double maxAllowedJoinTimeGap = 15.0;
+        double maxAllowedJoinGap = 90;
+        int maxPlatoonSize = 10;
+        double vehicleLength = 5.0;
+        int infoMessageInterval = 200;
+
+        std::string targetPlatoonId;
+        std::string OPERATION_INFO_TYPE = "INFO";
+        std::string OPERATION_STATUS_TYPE = "STATUS";
+        std::string JOIN_AT_REAR_PARAMS = "SIZE:%1%,SPEED:%2%,DTD:%3%";
+        std::string  MOBILITY_STRATEGY = "Carma/Platooning";
     
 
-    std::shared_ptr<ros::NodeHandle> nh_;
 
 
-    double minGap = 22.0;
-    double maxGap = 32.0;
-    std::string previousFunctionalLeaderID = "";
-    int previousFunctionalLeaderIndex = -1;
 
-    double maxSpacing = 4.0;
-    double minSpacing = 3.9;
-    double lowerBoundary = 1.6;
-    double upperBoundary = 1.7 ;
+    double minGap_ = 22.0;
+    double maxGap_ = 32.0;
+    std::string previousFunctionalLeaderID_ = "";
+    int previousFunctionalLeaderIndex_ = -1;
 
-    double vehicleLength = 5.0;  // m
+    double maxSpacing_ = 4.0;
+    double minSpacing_ = 3.9;
+    double lowerBoundary_ = 1.6;
+    double upperBoundary_ = 1.7 ;
 
-    double gapWithFront = 0.0;
+    double vehicleLength_ = 5.0;  // m
+
+    double gapWithFront_ = 0.0;
+
+    double downtrack_progress_ = 0;
 
 
-    std::string algorithmType = "APF_ALGORITHM";
+    std::string algorithmType_ = "APF_ALGORITHM";
 
     bool insufficientGapWithPredecessor(double distanceToFrontVehicle);
     std::vector<double> calculateTimeHeadway(std::vector<double> downtrackDistance, std::vector<double> speed) const;
@@ -154,11 +210,7 @@ namespace platoon_strategic
     std::vector<double> getTimeHeadwayFromIndex(std::vector<double> timeHeadways, int start) const;
 
 
-    void twist_cd(const geometry_msgs::TwistStampedConstPtr& msg);
-    void cmd_cd(const geometry_msgs::TwistStampedConstPtr& msg);
-    void pose_cb(const geometry_msgs::PoseStampedConstPtr& msg);
-
-    std::string HostMobilityId = "hostid";
+    
 
     
 

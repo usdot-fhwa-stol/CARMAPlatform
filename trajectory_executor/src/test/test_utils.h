@@ -33,7 +33,9 @@ class TrajectoryExecutorTestSuite : public ::testing::Test
         TrajectoryExecutorTestSuite() {
             _nh = ros::NodeHandle();
             traj_pub = _nh.advertise<cav_msgs::TrajectoryPlan>("trajectory", 5);
-            traj_sub = _nh.subscribe<cav_msgs::TrajectoryPlan>("guidance/mpc_follower/trajectory", 100, 
+            traj_sub = _nh.subscribe<cav_msgs::TrajectoryPlan>("/guidance/pure_pursuit/plan_jerk_trajectory", 100, 
+            &TrajectoryExecutorTestSuite::trajEmitCallback, this);
+            traj_sub2 = _nh.subscribe<cav_msgs::TrajectoryPlan>("/guidance/PlatooningControlPlugin/plan_trajectory", 100, 
             &TrajectoryExecutorTestSuite::trajEmitCallback, this);
             sys_alert_sub = _nh.subscribe<cav_msgs::SystemAlert>("system_alert", 100, 
             &TrajectoryExecutorTestSuite::sysAlertCallback, this);
@@ -41,6 +43,7 @@ class TrajectoryExecutorTestSuite : public ::testing::Test
         ros::NodeHandle _nh;
         ros::Publisher traj_pub;
         ros::Subscriber traj_sub;
+        ros::Subscriber traj_sub2;
         ros::Subscriber sys_alert_sub;
         int msg_count = 0;
         int last_points = 9999;
@@ -98,7 +101,29 @@ cav_msgs::TrajectoryPlan buildSampleTraj() {
     ros::Time cur_time = ros::Time::now();
     for (int i = 0; i < 10; i++) {
         cav_msgs::TrajectoryPlanPoint p;
-        p.controller_plugin_name = "mpc_follower";
+        p.controller_plugin_name = "Pure Pursuit Jerk";
+        p.lane_id = "0";
+        p.planner_plugin_name = "cruising";
+        ros::Duration dur(i * 0.13);
+        p.target_time = cur_time + dur;
+        p.x = 10 * i;
+        p.y = 10 * i;
+        plan.trajectory_points.push_back(p);
+    }
+
+    return plan;
+}
+
+cav_msgs::TrajectoryPlan buildSampleTraj2() {
+    cav_msgs::TrajectoryPlan plan;
+
+    plan.header.stamp = ros::Time::now();
+    plan.trajectory_id = "TEST TRAJECTORY 2";
+
+    ros::Time cur_time = ros::Time::now();
+    for (int i = 0; i < 10; i++) {
+        cav_msgs::TrajectoryPlanPoint p;
+        p.controller_plugin_name = "PlatooningControlPlugin";
         p.lane_id = "0";
         p.planner_plugin_name = "cruising";
         ros::Duration dur(i * 0.13);

@@ -21,8 +21,10 @@
 #include <string>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <autoware_msgs/ControlCommandStamped.h>
 #include <cav_msgs/TrajectoryPlan.h>
 #include <cav_msgs/Plugin.h>
+#include <cav_msgs/PlatooningInfo.h>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <math.h>
@@ -38,18 +40,29 @@ namespace platoon_control
     {
         public:
             
-					// Default constructor for PlatoonControlPlugin class
-					PlatoonControlPlugin();
+			// Default constructor for PlatoonControlPlugin class
+			PlatoonControlPlugin();
 
-					void initialize();
+			void initialize();
 
-					// general starting point of this node
-					void run();
-					// Compose twist message by calculating speed and steering commands.
-					geometry_msgs::TwistStamped composeTwist(const cav_msgs::TrajectoryPlanPoint& point);
+			// general starting point of this node
+			void run();
+
+			// Compose twist message by calculating speed and steering commands.
+			void generateControlSignals(const cav_msgs::TrajectoryPlanPoint& point0, const cav_msgs::TrajectoryPlanPoint& point_end);
+
+			geometry_msgs::TwistStamped composeTwistCmd(double linear_vel, double angular_vel);
+			autoware_msgs::ControlCommandStamped composeCtrlCmd(double linear_vel, double steering_angle);
+
+			// find the point correspoding to the lookahead distance
+			cav_msgs::TrajectoryPlanPoint getLookaheadTrajectoryPoint(cav_msgs::TrajectoryPlan trajectory_plan);
 			
-					// local copy of pose
-        	boost::shared_ptr<geometry_msgs::PoseStamped const> pose_msg_;
+			// local copy of pose
+        	geometry_msgs::PoseStamped pose_msg_;
+
+			// current speed (in m/s)
+			double current_speed_ = 0.0;
+			double trajectory_speed_ = 0.0;
 
         
         private:
@@ -58,20 +71,31 @@ namespace platoon_control
         	// CARMA ROS node handles
         	std::shared_ptr<ros::CARMANodeHandle> nh_, pnh_;
 
+			// platoon control worker object
         	PlatoonControlWorker pcw_;
 
-					double current_speed_ = 0.0;
+			// platooning config object
+			PlatooningControlPluginConfig config_;
 
-					// callback function for pose
-					void pose_cb(const geometry_msgs::PoseStampedConstPtr& msg);
 
-					// callback function for trajectory plan
-        	void TrajectoryPlan_cb(const cav_msgs::TrajectoryPlan::ConstPtr& tp);
+			// Variables
+			PlatoonLeaderInfo platoon_leader_;
 
-					// callback function for current twist
-					void currentTwist_cb(const geometry_msgs::TwistStamped::ConstPtr& twist);
+			// callback function for pose
+			void pose_cb(const geometry_msgs::PoseStampedConstPtr& msg);
 
-        	void publishTwist(const geometry_msgs::TwistStamped& twist) const;
+			// callback function for platoon info
+			void platoonInfo_cb(const cav_msgs::PlatooningInfoConstPtr& msg);
+
+			// callback function for trajectory plan
+        	void trajectoryPlan_cb(const cav_msgs::TrajectoryPlan::ConstPtr& tp);
+
+			// callback function for current twist
+			void currentTwist_cb(const geometry_msgs::TwistStamped::ConstPtr& twist);
+
+			double getTrajectorySpeed(std::vector<cav_msgs::TrajectoryPlanPoint> trajectory_points);
+
+			
 
         	// Plugin discovery message
         	cav_msgs::Plugin plugin_discovery_msg_;
@@ -79,17 +103,17 @@ namespace platoon_control
 
         	// ROS Subscriber
         	ros::Subscriber trajectory_plan_sub;
-					ros::Subscriber current_twist_sub_;
-					ros::Subscriber pose_sub_;
+			ros::Subscriber current_twist_sub_;
+			ros::Subscriber pose_sub_;
+			ros::Subscriber platoon_info_sub_;
         	// ROS Publisher
         	ros::Publisher twist_pub_;
-        	
+			ros::Publisher ctrl_pub_;
         	ros::Publisher plugin_discovery_pub_;
-
-					ros::Timer discovery_pub_timer_;
-
-					// TODO: add communication to receive leader
-					PlatoonLeaderInfo leader;
+			ros::Publisher platoon_info_pub_;
+			ros::Timer discovery_pub_timer_;
+			
+			
 
 
 

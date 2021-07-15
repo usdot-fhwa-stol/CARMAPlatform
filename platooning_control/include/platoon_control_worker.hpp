@@ -4,9 +4,11 @@
 #include <cav_msgs/MobilityOperation.h>
 #include <cav_msgs/MobilityRequest.h>
 #include <cav_msgs/MobilityResponse.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <cav_msgs/PlanType.h>
 #include "pid_controller.hpp"
 #include "pure_pursuit.hpp"
+#include "platoon_control_config.h"
 #include <boost/optional.hpp>
 
 
@@ -48,8 +50,10 @@ namespace platoon_control
     {
     public:
 
+        
         PlatoonControlWorker();
 
+        void updateConfigParams(PlatooningControlPluginConfig new_config);
 
         double getLastSpeedCommand() const;
 
@@ -63,31 +67,27 @@ namespace platoon_control
 
         double speedCmd;
         double currentSpeed;
-        double adjustmentCap = 10.0;
         double lastCmdSpeed = 0.0;
 
 
         double speedCmd_ = 0;
         double steerCmd_ = 0;
+        double angVelCmd_ = 0;
+        double desired_gap_ = ctrl_config.standStillHeadway;
+        double actual_gap_ = 0.0;
 
         PlatoonLeaderInfo platoon_leader;
 
 
-        // platooning_desired_time_headway"
-        double timeHeadway = 2.0;
-        // platooning standstillheadway"
-        double standStillHeadway = 12.0;
-
-        void setCurrentPose(const geometry_msgs::PoseStampedConstPtr& msg)
-		{
-			current_pose = msg->pose;
-		}
+        void setCurrentPose(const geometry_msgs::PoseStamped msg);
 
 		// geometry pose
-		geometry_msgs::Pose current_pose;
+        geometry_msgs::Pose current_pose_;
 
 
     private:
+        // config parameters
+        PlatooningControlPluginConfig ctrl_config;
 
         // pid controller object
         PIDController pid_ctrl_;
@@ -95,34 +95,17 @@ namespace platoon_control
         // pure pursuit controller object
         PurePursuit pp_;
 
-    	double maxAccel = 2.5; // m/s/s
-
-    	double desiredTimeGap = 1.0; // s
-
-
-        double desiredGap_ = 0.0;
-
-
-        long CMD_TIMESTEP = 100;
-
-
-        double getCurrentDowntrackDistance(const cav_msgs::TrajectoryPlanPoint& point);
-
         double dist_to_front_vehicle;
 
-        bool enableMaxAdjustmentFilter = leaderSpeedCapEnabled;
         bool leaderSpeedCapEnabled = true;
-
-        bool enableLocalSpeedLimitFilter = speedLimitCapEnabled;
+        bool enableMaxAdjustmentFilter = true;
+        
         bool speedLimitCapEnabled = true;
-
-        bool enableMaxAccelFilter = maxAccelCapEnabled;
+        bool enableLocalSpeedLimitFilter = true;
+        
         bool maxAccelCapEnabled = true;
-
-    	
-    
-
-    
+        bool enableMaxAccelFilter = true;
+        
 
     };
 }

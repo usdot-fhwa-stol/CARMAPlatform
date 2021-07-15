@@ -26,7 +26,7 @@ namespace platooning_tactical_plugin
 namespace smoothing
 {
 
-  typedef Eigen::Spline<float, 2> Spline2d;
+  typedef Eigen::Spline<double, 2> Spline2d;
 /**
  * \brief Realization of SplineI that uses the Eigen::Splines library for interpolation 
  */ 
@@ -36,6 +36,8 @@ public:
   ~BSpline(){};
   void setPoints(std::vector<lanelet::BasicPoint2d> points) override;
   lanelet::BasicPoint2d operator()(double t) const override;
+  lanelet::BasicPoint2d first_deriv(double t) const override;
+  lanelet::BasicPoint2d second_deriv(double t) const override;
 
 private:
   Spline2d spline_;

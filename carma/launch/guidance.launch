@@ -113,6 +113,9 @@
     <remap from="upcoming_lane_change_status" to="$(optenv CARMA_GUIDE_NS)/upcoming_lane_change_status"/>
     <include file="$(find route_following_plugin)/launch/route_following_plugin.launch" />
   </group>
+  <!-- Platooning Control Plugin -->
+  <include file="$(find platoon_control)/launch/platoon_control.launch" />
+
   <!-- Twist Filter -->
   <group>
     <remap from="/accel_cmd" to="accel_cmd"/>
@@ -148,6 +151,12 @@
   <group>
     <remap from="final_waypoints" to="base_waypoints"/>
     <include file="$(find inlanecruising_plugin)/launch/inlanecruising_plugin.launch" />
+  </group>
+
+  <!-- Platooning Tactical Plugin -->
+  <group>
+    <remap from="final_waypoints" to="base_waypoints"/>
+    <include file="$(find platooning_tactical_plugin)/launch/platooning_tactical_plugin.launch" />
   </group>
   
     <!-- StopandWait Plugin -->
@@ -202,6 +211,13 @@
     <remap from="outgoing_mobility_operation" to="$(optenv CARMA_MSG_NS)/outgoing_mobility_operation"/>
     <remap from="incoming_mobility_operation" to="$(optenv CARMA_MSG_NS)/incoming_mobility_operation"/>
     <include file="$(find port_drayage_plugin)/launch/port_drayage_plugin.launch" />
+  </group>
+  <!-- Platoon Strategic Plugin -->
+  <group>
+  <remap from="incoming_mobility_response" to="$(optenv CARMA_MSG_NS)/incoming_mobility_response"/>
+  <remap from="incoming_mobility_request" to="$(optenv CARMA_MSG_NS)/incoming_mobility_request"/>
+  <remap from="incoming_mobility_operation" to="$(optenv CARMA_MSG_NS)/incoming_mobility_operation"/>
+    <include file = "$(find platoon_strategic)/launch/platoon_strategic.launch"/>
   </group>
 
 

@@ -1,5 +1,0 @@
-# The length of the trajectory in time domain, in seconds
-trajectory_time_length: 6.0
-
-# The spacing between two consecutive trajectory points, in seconds
-trajectory_point_spacing: 0.1

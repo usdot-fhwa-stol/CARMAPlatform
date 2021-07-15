@@ -26,4 +26,4 @@ use_fixed_costs: true
 # Map: The priorities/costs associated with each plugin during the planning 
 # process, values will be normalized at runtime
 # Unit: N/a
-plugin_priorities: {RouteFollowingPlugin: 4.0}
+plugin_priorities: {RouteFollowingPlugin: 4.0, PlatooningStrategicPlugin: 6.0}
