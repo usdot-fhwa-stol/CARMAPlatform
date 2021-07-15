@@ -37,6 +37,7 @@ TEST(PortDrayageTest, testComposeArrivalMessage)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -69,6 +70,7 @@ TEST(PortDrayageTest, testCheckStop1)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -97,7 +99,8 @@ TEST(PortDrayageTest, testCheckStop2)
         "TEST_ID", 
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
-        std::function<void(cav_msgs::MobilityOperation)>(),
+        std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(),
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -127,6 +130,7 @@ TEST(PortDrayageTest, testCheckStop3)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -157,6 +161,7 @@ TEST(PortDrayageTest, testCheckStop4)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -340,6 +345,7 @@ TEST(PortDrayageTest, testComposeSetActiveRouteRequest)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(),
         1.0};
 
@@ -371,6 +377,7 @@ TEST(PortDrayageTest, testInboundMobilityOperation)
         "TEST_CARGO_ID", 
         "TEST_CARMA_HOST_ID", 
         std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(), 
         std::function<bool(cav_srvs::SetActiveRoute)>(), 
         1.0};
 
@@ -417,6 +424,41 @@ TEST(PortDrayageTest, testInboundMobilityOperation)
     ASSERT_EQ(38.9550038, *pdw._latest_mobility_operation_msg.dest_latitude);
     ASSERT_EQ("32", pdw._latest_mobility_operation_msg.current_action_id);
     ASSERT_EQ("33", pdw._latest_mobility_operation_msg.next_action_id);
+}
+
+TEST(PortDrayageTest, testComposeUIInstructions)
+{
+    // Create PortDrayageWorker object with _cmv_id of "123"
+    port_drayage_plugin::PortDrayageWorker pdw{
+        "123", 
+        "TEST_CARGO_ID", 
+        "TEST_CARMA_HOST_ID", 
+        std::function<void(cav_msgs::MobilityOperation)>(), 
+        std::function<void(cav_msgs::UIInstructions)>(),
+        std::function<bool(cav_srvs::SetActiveRoute)>(), 
+        1.0};
+
+    // Receive a message that commands CMV to drive to the Loading Area
+    cav_msgs::MobilityOperation mobility_operation_msg;
+    mobility_operation_msg.strategy = "carma/port_drayage";
+    mobility_operation_msg.strategy_params = "{ \"cmv_id\": \"123\", \"cargo_id\": \"321\", \"cargo\": \"false\", \"location\"\
+        : { \"latitude\": \"389554377\", \"longitude\": \"-771503421\" }, \"destination\": { \"latitude\"\
+        : \"389550038\", \"longitude\": \"-771481983\" }, \"operation\": \"MOVING_TO_LOADING_AREA\", \"action_id\"\
+        : \"32\", \"next_action\": \"33\" }";
+    cav_msgs::MobilityOperationConstPtr mobility_operation_msg_ptr(new cav_msgs::MobilityOperation(mobility_operation_msg));
+    pdw.on_inbound_mobility_operation(mobility_operation_msg_ptr);
+
+    // Obtain the composed UI Instructions
+    cav_msgs::UIInstructions ui_instructions = pdw.compose_ui_instructions();
+
+    // Verify that the composed UI Instructions are correct
+    std::string expected_text = "A new route to the Loading Area has been received. "
+                                "Select YES to engage the system on the route, or select NO to remain "
+                                "disengaged.";
+    std::string expected_response_service = "/guidance/set_guidance_active";
+    ASSERT_EQ(ui_instructions.msg, expected_text);
+    ASSERT_EQ(ui_instructions.type, cav_msgs::UIInstructions::ACK_REQUIRED);
+    ASSERT_EQ(ui_instructions.response_service, expected_response_service);
 }
 
 // Run all the tests
