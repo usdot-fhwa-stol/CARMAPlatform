@@ -126,9 +126,17 @@ namespace route {
     }
 
     bool RouteGeneratorWorker::set_active_route_cb(cav_srvs::SetActiveRouteRequest &req, cav_srvs::SetActiveRouteResponse &resp)
-    {
-        ROS_INFO_STREAM("set_active_route_cb: Selected ID:" << req.routeID);
-        // only allow activate a new route in route selection state
+    {   
+        if(req.choice == cav_srvs::SetActiveRouteRequest::ROUTE_ID)
+        {
+            ROS_INFO_STREAM("set_active_route_cb: Selected Route ID: " << req.routeID);
+        }
+        else if(req.choice == cav_srvs::SetActiveRouteRequest::DESTINATION_POINTS_ARRAY)
+        {
+            ROS_INFO_STREAM("set_active_route_cb: Destination Points array of size " << req.destination_points.size());
+        }
+
+        // only allow a new route to be activated in route selection state
         if(this->rs_worker_.get_route_state() == RouteStateWorker::RouteState::SELECTION)
         {
             ROS_DEBUG_STREAM("Valid state proceeding with selection");
@@ -155,11 +163,21 @@ namespace route {
             }
 
             // load destination points in map frame
-            auto destination_points = load_route_destinations_in_map_frame(req.routeID);
-            // Check if route file are valid with at least one starting points and one destination points
+            std::vector<lanelet::BasicPoint3d> destination_points;
+            if(req.choice == cav_srvs::SetActiveRouteRequest::ROUTE_ID)
+            {   
+                std::vector<cav_msgs::Position3D> gps_destination_points = load_route_destination_gps_points_from_route_id(req.routeID);
+                destination_points = load_route_destinations_in_map_frame(gps_destination_points);
+            }
+            else if(req.choice == cav_srvs::SetActiveRouteRequest::DESTINATION_POINTS_ARRAY)
+            {
+                destination_points = load_route_destinations_in_map_frame(req.destination_points);
+            }
+
+            // Check that the requested route is valid with at least one destination point
             if(destination_points.size() < 1)
             {
-                ROS_ERROR_STREAM("Selected route file contains no points. Routing cannot be completed.");
+                ROS_ERROR_STREAM("Provided route contains no destination points. Routing cannot be completed.");
                 resp.errorStatus = cav_srvs::SetActiveRouteResponse::ROUTE_FILE_ERROR;
                 this->rs_worker_.on_route_event(RouteStateWorker::RouteEvent::ROUTE_GEN_FAILED);
                 publish_route_event(cav_msgs::RouteEvent::ROUTE_GEN_FAILED);
@@ -207,7 +225,7 @@ namespace route {
                                 std::vector<lanelet::BasicPoint2d>(destination_points_in_map_with_vehicle.begin() + 1, destination_points_in_map_with_vehicle.end() - 1),
                                 destination_points_in_map_with_vehicle.back(),
                                 world_model_->getMap(), world_model_->getMapRoutingGraph());
-            // check if route successed
+            // check if route succeeded
             if(!route)
             {
                 ROS_ERROR_STREAM("Cannot find a route passing all destinations.");
@@ -242,10 +260,17 @@ namespace route {
             }
 
 
+            if(req.choice == cav_srvs::SetActiveRouteRequest::ROUTE_ID)
+            {
+                route_msg_.route_name = req.routeID;
+            }
+            else if(req.choice == cav_srvs::SetActiveRouteRequest::DESTINATION_POINTS_ARRAY)
+            {
+                route_msg_.route_name = "Route";
+            }
             route_marker_msg_ = compose_route_marker_msg(route);
             route_msg_.header.stamp = ros::Time::now();
             route_msg_.header.frame_id = "map";
-            route_msg_.route_name = req.routeID;
             route_msg_.map_version = world_model_->getMapVersion();
             // since routing is done correctly, transit to route following state
             this->rs_worker_.on_route_event(RouteStateWorker::RouteEvent::ROUTE_STARTED);
@@ -255,6 +280,7 @@ namespace route {
             return true;
         }
 
+        ROS_ERROR_STREAM("System is already following a route.");
         resp.errorStatus = cav_srvs::SetActiveRouteResponse::ALREADY_FOLLOWING_ROUTE;
 
         return true;
@@ -285,39 +311,67 @@ namespace route {
         return false;
     }
 
-    std::vector<lanelet::BasicPoint3d> RouteGeneratorWorker::load_route_destinations_in_map_frame(const std::string& route_id) const 
+    std::vector<lanelet::BasicPoint3d> RouteGeneratorWorker::load_route_destinations_in_map_frame(const std::vector<cav_msgs::Position3D>& destinations) const
+    {
+        if (!map_proj_) {
+            throw std::invalid_argument("load_route_destinations_in_map_frame (using destination points array) before map projection was set");
+        }
+        
+        lanelet::projection::LocalFrameProjector projector(map_proj_.get().c_str()); // Build map projector
+
+        // Process each point in 'destinations'
+        std::vector<lanelet::BasicPoint3d> destination_points;
+        for (const auto& destination : destinations)
+        {
+            lanelet::GPSPoint coordinate;
+            coordinate.lon = destination.longitude;
+            coordinate.lat = destination.latitude;
+            
+            if(destination.elevation_exists)
+            {
+                coordinate.ele = destination.elevation;
+            }
+            else
+            {
+                coordinate.ele = 0.0;
+            }
+
+            destination_points.emplace_back(projector.forward(coordinate));
+        }
+
+        return destination_points;
+    }
+
+    std::vector<cav_msgs::Position3D> RouteGeneratorWorker::load_route_destination_gps_points_from_route_id(const std::string& route_id) const
     {
         // compose full path of the route file
         std::string route_file_name = route_file_path_ + route_id + ".csv";
         std::ifstream fs(route_file_name);
         std::string line;
-        std::vector<lanelet::BasicPoint3d> destination_points;
         
-        if (!map_proj_) {
-            throw std::invalid_argument("load_route_destinations_in_map_frame before map projection was set");
-        }
-        
-        lanelet::projection::LocalFrameProjector projector(map_proj_.get().c_str()); // Build map projector
-
-        // read each line if any
+        // read each line in route file (if any)
+        std::vector<cav_msgs::Position3D> destination_points;
         while(std::getline(fs, line))
         {
-            lanelet::GPSPoint coordinate;
+            cav_msgs::Position3D gps_point;
+
             // lat lon and elev is seperated by comma
             auto comma = line.find(",");
             // convert lon value in degrees from string
-            coordinate.lon = std::stod(line.substr(0, comma));
+            gps_point.longitude = std::stod(line.substr(0, comma));
             line.erase(0, comma + 1);
             comma = line.find(",");
             // convert lat value in degrees from string
-            coordinate.lat = std::stod(line.substr(0, comma));
+            gps_point.latitude = std::stod(line.substr(0, comma));
             // elevation is in meters
             line.erase(0, comma + 1);
             comma = line.find(",");
-            coordinate.ele = std::stod(line.substr(0, comma));
+            gps_point.elevation = std::stod(line.substr(0, comma));
+            gps_point.elevation_exists = true;
 
-            destination_points.emplace_back(projector.forward(coordinate));
+            destination_points.push_back(gps_point);
         }
+
         return destination_points;
     }
 

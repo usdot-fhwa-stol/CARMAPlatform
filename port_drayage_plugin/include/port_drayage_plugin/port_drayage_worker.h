@@ -20,6 +20,7 @@
 #include <cav_msgs/MobilityOperation.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <cav_srvs/SetActiveRoute.h>
 #include <boost/optional.hpp>
 
 #include "port_drayage_plugin/port_drayage_state_machine.h"
@@ -64,6 +65,7 @@ namespace port_drayage_plugin
             std::string _cmv_id;
             std::string _cargo_id;
             std::function<void(cav_msgs::MobilityOperation)> _publish_mobility_operation;
+            std::function<bool(cav_srvs::SetActiveRoute)> _call_set_active_route_client;
 
             // Data member for storing the strategy_params field of the last processed port drayage MobilityOperation message intended for this vehicle's cmv_id
             std::string _previous_strategy_params;
@@ -99,13 +101,17 @@ namespace port_drayage_plugin
                 std::string cmv_id,
                 std::string cargo_id,
                 std::string host_id,
-                std::function<void(cav_msgs::MobilityOperation)> mobility_operations_publisher, 
+                std::function<void(cav_msgs::MobilityOperation)> mobility_operations_publisher,
+                std::function<bool(cav_srvs::SetActiveRoute)> set_active_route_service_client, 
                 double stop_speed_epsilon) :
                 _cmv_id(cmv_id),
                 _cargo_id(cargo_id),
                 _host_id(host_id),
                 _publish_mobility_operation(mobility_operations_publisher),
-                _stop_speed_epsilon(stop_speed_epsilon) {};
+                _call_set_active_route_client(set_active_route_service_client),
+                _stop_speed_epsilon(stop_speed_epsilon) {
+                    initialize();
+                };
 
 
             /**
@@ -115,9 +121,21 @@ namespace port_drayage_plugin
             void initialize();
 
             /**
-             * \brief Callback for usage by the PortDrayageStateMachine
+             * \brief Callback for usage by the PortDrayageStateMachine when the vehicle has arrived at a destination
              */
             void on_arrived_at_destination();
+
+            /**
+             * \brief Callback for usage by the PortDrayageStateMachine when the vehicle has received a new destination
+             */
+            void on_received_new_destination();
+
+            /**
+             * \brief Create a SetActiveRoute service request to set a new active route for the system based on
+             *        the destination points contained in the most recently-received Port Drayage MobilityOperation message
+             *        intended for this vehicle.
+             */
+            cav_srvs::SetActiveRoute compose_set_active_route_request() const;
 
             /**
              * \brief Assemble the current dataset into a MobilityOperations

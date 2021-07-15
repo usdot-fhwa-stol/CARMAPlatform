@@ -64,6 +64,7 @@ namespace port_drayage_plugin
     void PortDrayageStateMachine::set_on_received_new_destination_callback(const std::function<void()> &cb) {
         _on_received_new_destination = cb;
     }
+    
     void PortDrayageStateMachine::set_on_arrived_at_destination_callback(const std::function<void()> &cb) {
         _on_arrived_at_destination = cb;
     }

@@ -59,12 +59,45 @@ namespace port_drayage_plugin
 
     void PortDrayageWorker::initialize() {
         _pdsm.set_on_arrived_at_destination_callback(std::bind(&PortDrayageWorker::on_arrived_at_destination, this));
+        _pdsm.set_on_received_new_destination_callback(std::bind(&PortDrayageWorker::on_received_new_destination, this));
     }
     // @SONAR_START@
 
     void PortDrayageWorker::on_arrived_at_destination() {
         cav_msgs::MobilityOperation msg = compose_arrival_message();
         _publish_mobility_operation(msg);
+    }
+
+    void PortDrayageWorker::on_received_new_destination() {       
+        //  Populate the service request with the destination coordinates from the last received port drayage mobility operation message
+        cav_srvs::SetActiveRoute route_req = compose_set_active_route_request();
+
+        // Call service client to set the new active route
+        bool is_route_generation_successful = _call_set_active_route_client(route_req);
+
+        // Throw exception if route generation was not successful
+        if (!is_route_generation_successful) {
+            throw std::invalid_argument("Route generation failed. Routing could not be completed.");
+        }
+    }
+
+    cav_srvs::SetActiveRoute PortDrayageWorker::compose_set_active_route_request() const {
+        cav_srvs::SetActiveRoute route_req;
+        if (_latest_mobility_operation_msg.dest_latitude && _latest_mobility_operation_msg.dest_longitude) {
+            route_req.request.choice = cav_srvs::SetActiveRouteRequest::DESTINATION_POINTS_ARRAY;
+
+            cav_msgs::Position3D destination_point;
+            destination_point.latitude = *_latest_mobility_operation_msg.dest_latitude;
+            destination_point.longitude = *_latest_mobility_operation_msg.dest_longitude;
+            destination_point.elevation_exists = false;
+            
+            route_req.request.destination_points.push_back(destination_point);
+        }
+        else {
+            throw std::invalid_argument("No destination points were received. Routing could not be completed");
+        }
+
+        return route_req;
     }
 
     cav_msgs::MobilityOperation PortDrayageWorker::compose_arrival_message() const {

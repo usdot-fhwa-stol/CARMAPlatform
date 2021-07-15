@@ -20,6 +20,7 @@
 #include <carma_utils/CARMAUtils.h>
 #include <memory>
 #include <cav_srvs/PlanManeuvers.h>
+#include <cav_srvs/SetActiveRoute.h>
 #include <cav_msgs/ManeuverPlan.h>
 #include <cav_msgs/MobilityOperation.h>
 #include <geometry_msgs/TwistStamped.h>
@@ -50,6 +51,9 @@ namespace port_drayage_plugin
             
             // ROS service servers
             ros::ServiceServer plan_maneuver_srv_;  
+
+            // ROS service clients
+            ros::ServiceClient _set_active_route_client;
 
         public:
             double declaration;
@@ -86,6 +90,13 @@ namespace port_drayage_plugin
              * \return The exit code of the application
              */
             int run();
+            
+            /**
+             * \brief Calls the /guidance/set_active_route service client to set an active route 
+             * \param req The service request being used to call the service client
+             * \return If the service client call was successful and no errors occurred while setting the new active route
+             */
+            bool call_set_active_route_client(cav_srvs::SetActiveRoute req);
 
             /**
              * \brief Service callback for arbitrator maneuver planning

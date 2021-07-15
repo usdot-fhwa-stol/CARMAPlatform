@@ -97,8 +97,9 @@ namespace route {
 
         /**
          * \brief Set_active_route service callback. User can select a route to start following by calling this service
-         * \param req A cav_srvs::SetActiveRouteRequest msg which contains the route name user wants to select
-         * \param resp A cav_srvs::SetActiveRouteResponse msg contains error status showing if the routing successed
+         * \param req A cav_srvs::SetActiveRouteRequest msg which contains either a route name a user wants to select or 
+         *            an array of cav_msgs/Position3D destination points to generate a route from.
+         * \param resp A cav_srvs::SetActiveRouteResponse msg contains error status showing if the routing succeeded
          */
         bool set_active_route_cb(cav_srvs::SetActiveRouteRequest &req, cav_srvs::SetActiveRouteResponse &resp);
 
@@ -157,10 +158,16 @@ namespace route {
         bool check_for_duplicate_lanelets_in_shortest_path(const lanelet::routing::Route& route) const;
 
         /**
-         * \brief Helper function to load route points from route file and convert them from lat/lon values to cooridinates in map frame based on the projection string
+         * \brief Function to take route destination points from a vector of 3D points and convert them from lat/lon values to to coordinates in map frame based on the projection string
+         * \param destinations A vector of cav_msgs::Position3D points containing destination points provided as lat/long values
+         */
+        std::vector<lanelet::BasicPoint3d> load_route_destinations_in_map_frame(const std::vector<cav_msgs::Position3D>& destinations) const;
+
+        /**
+         * \brief Function to load route destination points from a route file and store them in a vector of 3D points
          * \param route_id This function will read the route file with provided route_id
          */
-        std::vector<lanelet::BasicPoint3d> load_route_destinations_in_map_frame(const std::string& route_id) const;
+        std::vector<cav_msgs::Position3D> load_route_destination_gps_points_from_route_id(const std::string& route_id) const;
 
         /**
          * \brief Helper function to generate a CARMA route message based on planned lanelet route

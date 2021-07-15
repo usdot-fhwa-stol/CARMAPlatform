@@ -429,12 +429,13 @@ TEST(RouteGeneratorTest, test_set_active_route_cb)
         if(resp.availableRoutes[i].route_id  == "tfhrc_test_route")
         {
             std::cout <<"C-HUB : " << resp.availableRoutes[i].route_name << "\n";
-            auto points = worker.load_route_destinations_in_map_frame("tfhrc_test_route");
-            std::cout << "Point Size : " << points.size()<<"\n";
-            ASSERT_EQ(5, points.size());
-            ASSERT_NEAR(-170.21389078, points[0].x(), 0.001);
-            ASSERT_NEAR(498.11200005, points[0].y(), 0.001);  
-            ASSERT_NEAR(72, points[0].z(), 0.001);
+            auto gps_points = worker.load_route_destination_gps_points_from_route_id("tfhrc_test_route");
+            auto map_points = worker.load_route_destinations_in_map_frame(gps_points);
+            std::cout << "Point Size : " << map_points.size()<<"\n";
+            ASSERT_EQ(5, map_points.size());
+            ASSERT_NEAR(-170.21389078, map_points[0].x(), 0.001);
+            ASSERT_NEAR(498.11200005, map_points[0].y(), 0.001);  
+            ASSERT_NEAR(72, map_points[0].z(), 0.001);
         }
     }
     cav_srvs::SetActiveRouteRequest req2;
@@ -454,6 +455,7 @@ TEST(RouteGeneratorTest, test_set_active_route_cb)
         if(i.route_id  == "tfhrc_test_route")
         {
             req2.routeID = i.route_id;
+            req2.choice = cav_srvs::SetActiveRouteRequest::ROUTE_ID;
 
             ASSERT_EQ(worker.set_active_route_cb(req2, resp2), true);
         }
